@@ -145,7 +145,7 @@
   <!-- ============ 手書き風文字追加 ============ -->
   <section class="tool-panel" id="panel-hand" data-panel="hand" hidden>
     <h2 class="panel-title">手書き風文字追加</h2>
-    <p class="panel-lead">文字はページをクリック、四角い囲み・マルはページ上をドラッグして、手書き風に入れられます。置いたものは線や文字をドラッグして移動、選択中は下の設定で変更できます（Deleteで削除）。</p>
+    <p class="panel-lead">文字はページをクリック、四角い囲み・マルはページ上をドラッグして、手書き風に入れられます。置いたものは線や文字をドラッグして移動、選択中は下の設定で変更できます（Deleteで削除）。消しゴムでなぞると、手書きの文字・線を部分的に消せます。</p>
 
     <div class="card toolbar">
       <div class="field">
@@ -154,6 +154,7 @@
           <option value="text">文字（クリックで配置）</option>
           <option value="rect">四角い囲み（ドラッグ）</option>
           <option value="ellipse">マル（ドラッグ）</option>
+          <option value="eraser">消しゴム（なぞって消す）</option>
         </select>
       </div>
       <div class="field" data-for-text style="flex:1 1 240px;min-width:220px">
@@ -169,15 +170,17 @@
           <option value="Yusei Magic">油性マジック</option>
         </select>
       </div>
-      <div class="field"><label for="hw-color">色</label><input id="hw-color" type="color" value="#1d3fa8"></div>
+      <div class="field" data-for-eraser hidden><label for="hw-er">消しゴムの大きさ</label><input id="hw-er" type="range" min="3" max="40" value="12"></div>
+      <div class="field" data-for-draw><label for="hw-color">色</label><input id="hw-color" type="color" value="#1d3fa8"></div>
       <div class="field" data-for-text><label for="hw-size">大きさ</label><input id="hw-size" type="range" min="10" max="72" value="24"></div>
       <div class="field" data-for-shape hidden><label for="hw-lw">線の太さ</label><input id="hw-lw" type="range" min="1" max="8" step="0.5" value="2.5"></div>
-      <div class="field"><label for="hw-jitter">ゆらぎ</label><input id="hw-jitter" type="range" min="0" max="100" value="45"></div>
+      <div class="field" data-for-draw><label for="hw-jitter">ゆらぎ</label><input id="hw-jitter" type="range" min="0" max="100" value="45"></div>
       <div class="field" data-for-text><label for="hw-angle">傾き</label><input id="hw-angle" type="range" min="-30" max="30" value="-2"></div>
     </div>
     <div class="card toolbar">
       <span class="badge" id="hw-count">文字: 0</span>
-      <button id="hw-delete" type="button" class="btn-outline" disabled>選択中の文字を削除</button>
+      <button id="hw-erUndo" type="button" class="btn-outline" disabled>消しゴムを元に戻す</button>
+      <button id="hw-delete" type="button" class="btn-outline" disabled>選択中の要素を削除</button>
       <button id="hw-clear" type="button" class="btn-outline">すべて削除</button>
       <button id="hw-save" type="button" class="btn-primary" disabled>PDFを保存</button>
       <p class="status" id="hw-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
@@ -327,7 +330,7 @@
 
 <script src="common.js?v=1"></script>
 <script src="redact.js?v=1"></script>
-<script src="hand.js?v=3"></script>
+<script src="hand.js?v=4"></script>
 <script src="pages.js?v=1"></script>
 <script src="meta.js?v=1"></script>
 <script src="app.js?v=1"></script>
