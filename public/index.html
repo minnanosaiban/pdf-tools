@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDFツール</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<meta property="og:type" content="website">
+<meta property="og:title" content="PDFツール">
+<meta property="og:description" content="PDFの墨消し・検索、手書き風文字追加、結合・分割・回転、メタデータ編集削除をブラウザだけで。送信なし・ローカルで完結。">
+<meta name="twitter:card" content="summary">
+<!-- 手書き風文字追加のフォント（Google Fonts。THIRD_PARTY_NOTICES.md参照）。CDN読み込みはこれのみ。
+     PDFデータは一切送信されない（フォント定義を取得するだけ）。 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yomogi&family=Klee+One:wght@400;600&family=Zen+Kurenaido&family=Yusei+Magic&display=swap">
+<script src="vendor/pdfjs/pdf.min.js"></script>
+<script src="vendor/pdf-lib/pdf-lib.min.js"></script>
+<link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+
+<!-- ============================================================
+     ヒーロー（sidenoteと同じ構成）。sidenoteの「デザイン」ボタン群の場所に、機能切り替えボタンを置く。
+     ============================================================ -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-left">
+      <h1 class="hero-title">PDFツール</h1>
+      <p class="hero-desc">PDFの加工を、ブラウザの中だけで。</p>
+
+      <div class="hero-shortcuts">
+        <div class="hero-shortcuts-title">送信なし・ローカルで完結</div>
+        <ul>
+          <li>PDFは外部へ送信されません</li>
+          <li>ご利用前に下の免責事項をご覧ください</li>
+        </ul>
+      </div>
+
+      <div class="hero-theme-section">
+        <div class="hero-theme-head"><span class="hero-theme-title">機能</span></div>
+        <div class="theme-grid" id="toolGrid" role="tablist" aria-label="機能の切り替え">
+          <button type="button" class="theme-swatch" role="tab" data-tool="redact">墨消し・検索</button>
+          <button type="button" class="theme-swatch" role="tab" data-tool="hand">手書き風文字追加</button>
+          <button type="button" class="theme-swatch" role="tab" data-tool="pages">結合・分割・回転</button>
+          <button type="button" class="theme-swatch" role="tab" data-tool="meta">メタデータ編集削除</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="browser-mock" aria-hidden="true">
+        <div class="browser-mock-bar">
+          <span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span>
+          <span class="browser-mock-url">pdf-tools</span>
+        </div>
+        <div class="browser-mock-body">
+          <div class="mock-paper">
+            <div class="mock-doc" data-mock="redact">
+              <div class="mock-h" style="width:52%"></div>
+              <div class="mock-line" style="width:92%"></div>
+              <div class="mock-redact" style="width:46%"></div>
+              <div class="mock-line" style="width:80%"></div>
+              <div class="mock-redact" style="width:60%"></div>
+              <div class="mock-line" style="width:70%"></div>
+              <div class="mock-line" style="width:88%"></div>
+            </div>
+            <div class="mock-doc" data-mock="hand" hidden>
+              <div class="mock-h" style="width:52%"></div>
+              <div class="mock-line" style="width:92%"></div>
+              <div class="mock-line" style="width:76%"></div>
+              <div class="mock-hand">確認済み ✓　要修正！</div>
+              <div class="mock-line" style="width:84%"></div>
+              <div class="mock-line" style="width:64%"></div>
+            </div>
+            <div class="mock-doc" data-mock="pages" hidden>
+              <div class="mock-thumbs" style="padding-top:34px">
+                <div class="mock-thumb-page"><span class="mock-line"></span><span class="mock-line"></span><span class="mock-line" style="width:60%"></span></div>
+                <span class="mock-plus">+</span>
+                <div class="mock-thumb-page rot"><span class="mock-line"></span><span class="mock-line"></span><span class="mock-line" style="width:60%"></span></div>
+                <span class="mock-plus">→</span>
+                <div class="mock-thumb-page"><span class="mock-line"></span><span class="mock-line"></span><span class="mock-line" style="width:60%"></span></div>
+              </div>
+            </div>
+            <div class="mock-doc" data-mock="meta" hidden>
+              <div class="mock-field"><span class="mock-field-label">タイトル</span><span class="mock-field-input"></span></div>
+              <div class="mock-field"><span class="mock-field-label">作成者</span><span class="mock-field-input empty"></span></div>
+              <div class="mock-field"><span class="mock-field-label">作成アプリ</span><span class="mock-field-input empty"></span></div>
+              <div class="mock-field"><span class="mock-field-label">変換アプリ</span><span class="mock-field-input empty"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="workspace">
+
+  <!-- ============ 墨消し・検索 ============ -->
+  <section class="tool-panel" id="panel-redact" data-panel="redact" hidden>
+    <h2 class="panel-title">墨消し・検索</h2>
+    <p class="panel-lead">文字を検索して墨消し枠を自動追加、またはページ上をドラッグして枠を追加できます（枠クリックで削除）。スキャンPDF（文字なし）でも、ドラッグでの墨消しは使えます。</p>
+
+    <div class="card toolbar">
+      <div class="field" style="min-width:220px;flex:1 1 220px">
+        <label for="rd-q">文字を検索して墨消し枠に追加</label>
+        <input id="rd-q" class="text-input" type="text" placeholder="例: ＥＮＥＯＳ" disabled>
+      </div>
+      <button id="rd-search" type="button" class="btn-outline" disabled>枠として追加</button>
+      <span class="toolbar-sep"></span>
+      <div class="toolbar-group">
+        <span class="badge" id="rd-count">枠: 0</span>
+        <button id="rd-undo" type="button" class="btn-outline">元に戻す</button>
+        <button id="rd-clear" type="button" class="btn-outline">全枠削除</button>
+      </div>
+    </div>
+    <div class="card toolbar">
+      <div class="field">
+        <label for="rd-dpi">出力解像度</label>
+        <select id="rd-dpi" class="text-input">
+          <option value="150">150dpi（軽い）</option>
+          <option value="200" selected>200dpi（標準）</option>
+          <option value="300">300dpi（高精細）</option>
+        </select>
+      </div>
+      <button id="rd-apply" type="button" class="btn-primary">墨消し適用</button>
+      <button id="rd-download" type="button" class="btn-outline" disabled>
+        <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708z"/></svg>
+        ダウンロード
+      </button>
+      <p class="cap" style="flex-basis:100%">※適用からダウンロード可能になるまで、ページ数や解像度によっては時間がかかります。</p>
+      <p class="status" id="rd-applyStatus" style="flex-basis:100%" aria-live="polite"></p>
+    </div>
+
+    <label class="dropzone" id="rd-drop">
+      <svg class="icon-lg" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+      <p>ここをクリックして書類を選ぶ<span class="dropzone-sub">またはファイルをドラッグ＆ドロップ（PDF）</span></p>
+      <input id="rd-file" type="file" accept="application/pdf">
+    </label>
+    <div><span id="rd-ptype" class="badge">—</span></div>
+    <p class="status" id="rd-status">PDFを読み込むと、全ページがここに縦に並びます。</p>
+    <div class="pages-col" id="rd-pages"></div>
+  </section>
+
+  <!-- ============ 手書き風文字追加 ============ -->
+  <section class="tool-panel" id="panel-hand" data-panel="hand" hidden>
+    <h2 class="panel-title">手書き風文字追加</h2>
+    <p class="panel-lead">ページ上をクリックすると、下で入力した文字が手書き風の書体で置かれます。置いた文字はドラッグで移動、選択中は下の設定で書き換えできます。</p>
+
+    <div class="card toolbar">
+      <div class="field" style="flex:1 1 240px;min-width:220px">
+        <label for="hw-text">追加する文字（改行可）</label>
+        <textarea id="hw-text" class="text-input" rows="2" placeholder="例: 確認済み"></textarea>
+      </div>
+      <div class="field">
+        <label for="hw-font">書体</label>
+        <select id="hw-font" class="text-input">
+          <option value="Yomogi">よもぎ（やわらかい）</option>
+          <option value="Klee One">クレー（ペン字）</option>
+          <option value="Zen Kurenaido">ZEN 紅道（筆ペン）</option>
+          <option value="Yusei Magic">油性マジック</option>
+        </select>
+      </div>
+      <div class="field"><label for="hw-color">色</label><input id="hw-color" type="color" value="#1d3fa8"></div>
+      <div class="field"><label for="hw-size">大きさ</label><input id="hw-size" type="range" min="10" max="72" value="24"></div>
+      <div class="field"><label for="hw-jitter">ゆらぎ</label><input id="hw-jitter" type="range" min="0" max="100" value="45"></div>
+      <div class="field"><label for="hw-angle">傾き</label><input id="hw-angle" type="range" min="-30" max="30" value="-2"></div>
+    </div>
+    <div class="card toolbar">
+      <span class="badge" id="hw-count">文字: 0</span>
+      <button id="hw-delete" type="button" class="btn-outline" disabled>選択中の文字を削除</button>
+      <button id="hw-clear" type="button" class="btn-outline">すべて削除</button>
+      <button id="hw-save" type="button" class="btn-primary" disabled>PDFを保存</button>
+      <p class="status" id="hw-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
+    </div>
+
+    <label class="dropzone" id="hw-drop">
+      <svg class="icon-lg" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+      <p>ここをクリックして書類を選ぶ<span class="dropzone-sub">またはファイルをドラッグ＆ドロップ（PDF）</span></p>
+      <input id="hw-file" type="file" accept="application/pdf">
+    </label>
+    <p class="status" id="hw-status">PDFを読み込むと、全ページがここに縦に並びます。</p>
+    <div class="pages-col" id="hw-pages"></div>
+  </section>
+
+  <!-- ============ 結合・分割・回転 ============ -->
+  <section class="tool-panel" id="panel-pages" data-panel="pages" hidden>
+    <h2 class="panel-title">結合・分割・回転</h2>
+    <p class="panel-lead">複数のPDFのページをサムネイルで並べ替え・削除・回転して1つに結合できます。左上の○でページを選ぶと、選んだページだけの抽出・回転もできます。</p>
+
+    <label class="dropzone" id="pg-drop">
+      <svg class="icon-lg" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+      <p>ここをクリックして書類を選ぶ<span class="dropzone-sub">またはファイルをドラッグ＆ドロップ（複数のPDFを同時に追加可・あとから追加も可）</span></p>
+      <input id="pg-file" type="file" accept="application/pdf" multiple>
+    </label>
+
+    <div class="card toolbar" id="pg-ops" hidden>
+      <span class="badge" id="pg-count">0ページ</span>
+      <div class="toolbar-group">
+        <button id="pg-rotL" type="button" class="btn-outline" title="選択ページ（未選択なら全ページ）を左に回転">↺ 左回転</button>
+        <button id="pg-rotR" type="button" class="btn-outline" title="選択ページ（未選択なら全ページ）を右に回転">↻ 右回転</button>
+        <button id="pg-selAll" type="button" class="btn-outline">全選択</button>
+        <button id="pg-selNone" type="button" class="btn-outline">選択解除</button>
+        <button id="pg-clear" type="button" class="btn-outline">すべてクリア</button>
+      </div>
+    </div>
+    <div class="card toolbar" id="pg-out" hidden>
+      <div class="field">
+        <label for="pg-name">出力ファイル名</label>
+        <input id="pg-name" class="text-input" type="text" value="merged.pdf">
+      </div>
+      <button id="pg-merge" type="button" class="btn-primary">結合してダウンロード</button>
+      <button id="pg-extract" type="button" class="btn-outline" disabled>選択ページを抽出して保存</button>
+      <span class="toolbar-sep"></span>
+      <div class="field">
+        <label for="pg-splitN">分割：何ページごと</label>
+        <input id="pg-splitN" class="text-input" type="number" min="1" value="1" style="width:100px">
+      </div>
+      <button id="pg-split" type="button" class="btn-outline">分割して保存</button>
+      <p class="cap" style="flex-basis:100%">※分割は現在の並び順で先頭から指定ページごとに区切り、複数ファイルを続けてダウンロードします（ブラウザが複数ダウンロードの許可を求めることがあります）。</p>
+      <p class="status" id="pg-status2" style="flex-basis:100%" aria-live="polite"></p>
+    </div>
+
+    <p class="status" id="pg-status">PDFを追加すると、全ページのサムネイルがここに並びます。</p>
+    <div class="thumb-grid" id="pg-pages"></div>
+  </section>
+
+  <!-- ============ メタデータ編集削除 ============ -->
+  <section class="tool-panel" id="panel-meta" data-panel="meta" hidden>
+    <h2 class="panel-title">メタデータ編集削除</h2>
+    <p class="panel-lead">PDFの「文書のプロパティ」を編集・削除します。個人情報を含む項目の削除や、検索されやすいタイトル設定に使えます。</p>
+
+    <div class="card toolbar">
+      <label class="btn-outline filebtn" id="md-drop" style="cursor:pointer">
+        <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+        PDFを選ぶ
+        <input id="md-file" type="file" accept="application/pdf">
+      </label>
+      <button type="button" class="btn-outline" id="md-pickFolder">
+        <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.826a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12q.322-.119.684-.12h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/></svg>
+        フォルダを選んで一覧表示
+      </button>
+      <input type="file" id="md-folderInput" webkitdirectory multiple hidden>
+      <span class="badge" id="md-filename" hidden></span>
+      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。フォルダ選択では直下のPDFのタイトル・作成者をExcelのように一覧編集できます（サブフォルダは対象外）。ブラウザの確認ダイアログ（「アップロードしますか？」等）は読み取り許可の確認で、外部への送信はありません。</p>
+    </div>
+
+    <p class="status" id="md-status">「PDFを選ぶ」で1件、または「フォルダを選んで一覧表示」で複数まとめて編集できます。</p>
+
+    <div id="md-editArea" hidden>
+      <div class="card">
+        <div class="field-group">
+          <div class="field-label">タイトル</div>
+          <input type="text" class="text-input" id="md-fTitle" placeholder="（未設定）">
+          <p class="field-hint-plain">インターネットに公開した場合、検索結果のタイトルとして使われることがあります</p>
+        </div>
+        <div class="field-group">
+          <div class="field-label">作成者</div>
+          <input type="text" class="text-input" id="md-fAuthor" placeholder="（未設定）">
+          <p class="field-hint-plain">Wordなどで作成したPDFは、本名やアカウント名が自動で入っていることがあります</p>
+        </div>
+        <details class="advanced">
+          <summary>詳しい項目（作成アプリ・作成日など）</summary>
+          <div class="field-group">
+            <div class="field-label">作成アプリ（例: Microsoft Word）</div>
+            <input type="text" class="text-input" id="md-fCreator" placeholder="（未設定）">
+          </div>
+          <div class="field-group">
+            <div class="field-label">PDF変換アプリ（例: Adobe Acrobat）</div>
+            <input type="text" class="text-input" id="md-fProducer" placeholder="（未設定）">
+          </div>
+          <div class="field-group readonly-info">
+            <div class="info-row"><span class="info-label">作成日</span><span id="md-iCreationDate">—</span></div>
+            <div class="info-row"><span class="info-label">更新日</span><span id="md-iModDate">—</span></div>
+            <p class="field-hint-plain">作成日・更新日はこのツールでは編集できません。保存すると更新日は自動的に現在の日時になります。</p>
+          </div>
+        </details>
+        <div class="toolbar">
+          <button type="button" class="btn-outline" id="md-clearAll">すべての項目を空にする</button>
+          <button type="button" class="btn-primary" id="md-save">この内容でPDFを保存</button>
+          <p class="status" id="md-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="md-folderArea" hidden>
+      <div class="card toolbar" style="margin-bottom:12px">
+        <button type="button" class="btn-outline" id="md-folderClearAll">すべて空にする</button>
+        <button type="button" class="btn-primary" id="md-folderSaveAll">まとめて保存してダウンロード</button>
+        <p class="status" id="md-folderSaveAllStatus" style="flex-basis:100%" aria-live="polite"></p>
+      </div>
+      <div class="table-scroll">
+        <table class="meta-table">
+          <thead><tr><th class="col-name">ファイル名</th><th class="col-field">タイトル</th><th class="col-field">作成者</th><th class="col-action">保存</th></tr></thead>
+          <tbody id="md-folderBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-info" id="disclaimer">
+  <div class="card">
+    <div class="shead">■ このツールについて</div>
+    <p class="cap">※PDFの墨消し・検索、手書き風文字追加、結合・分割・回転、メタデータ編集削除をまとめたツールです。</p>
+    <p class="cap">※ご意見・ご要望は作成者までご連絡ください。</p>
+    <a class="link" href="https://x.com/minnanosaiban" target="_blank" rel="noopener">@minnanosaiban</a>
+  </div>
+  <div class="card">
+    <div class="shead">■ 免責事項</div>
+    <p class="cap">※本ツールは無保証で提供されます（現状有姿）。処理はすべてお使いのブラウザ内で完結しPDFは外部送信されませんが、ご利用環境に起因する情報漏えいについて作成者は責任を負いません。</p>
+    <p class="cap">※本ツールの利用により生じたいかなる損害についても作成者は責任を負わず、法的助言を提供するものではありません。</p>
+    <p class="cap">※墨消しは各ページを画像化して黒く塗りつぶす方式です。消し忘れ・塗り不足を含め、出力結果の最終確認は利用者の責任で行ってください。</p>
+    <p class="cap">※パスワード保護（暗号化）されたPDFには対応していません。結合・分割後は、ページの順番・件数が意図通りか確認してください。</p>
+    <p class="cap">※メタデータ編集が書き換えるのは「文書のプロパティ」欄のみです。本文の文字・画像や、別途埋め込まれたXMPメタデータは削除されません。</p>
+  </div>
+</footer>
+
+<script src="common.js?v=1"></script>
+<script src="redact.js?v=1"></script>
+<script src="hand.js?v=1"></script>
+<script src="pages.js?v=1"></script>
+<script src="meta.js?v=1"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>

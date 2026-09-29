@@ -1,0 +1,13 @@
+{
+  "name": "pdf-tools",
+  "private": true,
+  "version": "0.1.0",
+  "description": "PDFの墨消し・手書き風文字追加・結合分割回転・メタデータ編集をまとめたツール（ブラウザ完結・Cloudflare Pages）",
+  "scripts": {
+    "dev": "wrangler pages dev",
+    "deploy": "wrangler pages deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.105.0"
+  }
+}
