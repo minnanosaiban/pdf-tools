@@ -6,9 +6,25 @@
 <title>PDFツール</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://pdf-tools-agb.pages.dev/">
 <meta property="og:title" content="PDFツール">
 <meta property="og:description" content="PDFの墨消し・検索、手書き風文字追加、結合・分割・回転、メタデータ編集削除をブラウザだけで。送信なし・ローカルで完結。">
-<meta name="twitter:card" content="summary">
+<!-- og:imageは正方形を1枚目に置く。多くのクローラー(Teams等)は複数og:imageのうち1枚目を機械的に使い、
+     小さいサムネイル枠では中央を正方形にトリミングする。横長(1200x630)を1枚目にすると左右が切れるため、
+     先に正方形、横長は2枚目に回す（sidenoteと同じ方針）。Twitterはtwitter:image(別タグ)を見るので横長のまま表示される。
+     画像は scripts/make_og_image.py で再生成できる。 -->
+<meta property="og:image" content="https://pdf-tools-agb.pages.dev/og-image-square.png">
+<meta property="og:image:width" content="630">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image" content="https://pdf-tools-agb.pages.dev/og-image-large.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PDFツール">
+<meta name="twitter:description" content="PDFの墨消し・検索、手書き風文字追加、結合・分割・回転、メタデータ編集削除をブラウザだけで。送信なし・ローカルで完結。">
+<meta name="twitter:image" content="https://pdf-tools-agb.pages.dev/og-image-large.png">
 <!-- 手書き風文字追加のフォント（Google Fonts。THIRD_PARTY_NOTICES.md参照）。CDN読み込みはこれのみ。
      PDFデータは一切送信されない（フォント定義を取得するだけ）。 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
