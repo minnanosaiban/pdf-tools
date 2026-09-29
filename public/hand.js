@@ -12,7 +12,7 @@
 
   const el = {
     text: $("hw-text"), font: $("hw-font"), color: $("hw-color"), size: $("hw-size"),
-    jitter: $("hw-jitter"), angle: $("hw-angle"),
+    jitter: $("hw-jitter"), angle: $("hw-angle"), kind: $("hw-kind"), lw: $("hw-lw"),
     count: $("hw-count"), del: $("hw-delete"), clear: $("hw-clear"), save: $("hw-save"),
     saveStatus: $("hw-saveStatus"), status: $("hw-status"),
   };
@@ -49,7 +49,65 @@
     return { lines, w, lh: it.size * s * 1.35, h: it.size * s * 1.35 * lines.length };
   }
 
+  // ---- 四角・マル（手書き風の揺れた線） ----
+  // 滑らかなゆらぎ：位相の違うsinを重ねる（隣り合う点が連続して動くので、ペンの手ぶれっぽくなる）
+  function wobbler(r, amp) {
+    const f1 = 1.5 + r() * 2, f2 = 4 + r() * 3, p1 = r() * 6.28, p2 = r() * 6.28;
+    return (t) => amp * (0.7 * Math.sin(f1 * t + p1) + 0.3 * Math.sin(f2 * t + p2));
+  }
+
+  function shapePath(it, W, H, s) {
+    const j = it.jitter / 100, r = rng(it.seed);
+    const x = it.x * W, y = it.y * H, w = it.w * W, h = it.h * H;
+    const amp = Math.max(0.3, Math.min(w, h) * 0.02 * j + it.lw * s * 0.5 * j);
+    const pts = [];
+    if (it.type === "ellipse") {
+      const cx = x + w / 2, cy = y + h / 2, rx = w / 2, ry = h / 2;
+      const a0 = r() * 6.28, turns = 1.06 + r() * 0.06;      // 始点と終点をずらし、閉じきらず少し重ねる
+      const wob = wobbler(r, amp), drift = (r() - 0.5) * amp * 3;
+      const n = Math.max(40, Math.round((rx + ry) / 2));
+      for (let i = 0; i <= n; i++) {
+        const t = i / n, a = a0 + t * turns * 6.28318;
+        const k = 1 + (wob(a) + drift * t) / Math.max(rx, ry, 1);
+        pts.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k]);
+      }
+    } else {
+      const jc = () => (r() - 0.5) * Math.min(w, h) * 0.06 * j;   // 角のずれ
+      const c = [[x + jc(), y + jc()], [x + w + jc(), y + jc()], [x + w + jc(), y + h + jc()], [x + jc(), y + h + jc()]];
+      const ov = 0.05 + r() * 0.05;                               // 最後の辺は少しはみ出して重ねる
+      const loop = [c[0], c[1], c[2], c[3], c[0]];
+      const tail = [c[0][0] + (c[1][0] - c[0][0]) * ov, c[0][1] + (c[1][1] - c[0][1]) * ov];
+      loop.push(tail);
+      for (let e = 0; e < loop.length - 1; e++) {
+        const [ax, ay] = loop[e], [bx, by] = loop[e + 1];
+        const len = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / len, ny = (bx - ax) / len;
+        const wob = wobbler(r, amp), n = Math.max(6, Math.round(len / 6));
+        for (let i = (e === 0 ? 0 : 1); i <= n; i++) {
+          const t = i / n, o = wob(t * 3);
+          pts.push([ax + (bx - ax) * t + nx * o, ay + (by - ay) * t + ny * o]);
+        }
+      }
+    }
+    return pts;
+  }
+
+  function drawShape(ctx, it, W, H, s) {
+    const pts = shapePath(it, W, H, s);
+    ctx.save();
+    ctx.strokeStyle = it.color; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    // ペンを2度なぞったような、わずかに太さの違う線を重ねる
+    for (const [wm, al] of [[1, 0.95], [0.55, 0.5]]) {
+      ctx.lineWidth = it.lw * s * wm; ctx.globalAlpha = al;
+      ctx.beginPath();
+      pts.forEach(([px, py], i) => (i ? ctx.lineTo(px + (wm < 1 ? 0.6 * s : 0), py) : ctx.moveTo(px + (wm < 1 ? 0.6 * s : 0), py)));
+      ctx.stroke();
+    }
+    ctx.restore();
+    return { w: it.w * W, h: it.h * H };
+  }
+
   function drawItem(ctx, it, W, H, s) {
+    if (it.type === "rect" || it.type === "ellipse") return drawShape(ctx, it, W, H, s);
     const m = measure(ctx, it, s);
     const j = it.jitter / 100, r = rng(it.seed);
     ctx.save();
@@ -89,7 +147,8 @@
       const m = drawItem(ctx, it, W, H, s);
       if (it.id === selectedId) {
         ctx.save();
-        ctx.translate(it.x * W, it.y * H); ctx.rotate(it.angle * Math.PI / 180);
+        ctx.translate(it.x * W, it.y * H);
+        if (!isShape(it)) ctx.rotate(it.angle * Math.PI / 180);
         ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(30,33,38,.75)";
         ctx.strokeRect(-4, -4, m.w + 8, m.h + 8);
         ctx.restore();
@@ -105,8 +164,9 @@
 
   // ---- 選択・コントロール同期 ----
   const byId = (id) => items.find((i) => i.id === id);
+  const isShape = (it) => it.type === "rect" || it.type === "ellipse";
   function updateChrome() {
-    el.count.textContent = `文字: ${items.length}`;
+    el.count.textContent = `要素: ${items.length}`;
     el.del.disabled = selectedId == null;
     el.save.disabled = !pdf || items.length === 0;
   }
@@ -114,22 +174,37 @@
     selectedId = id;
     const it = byId(id);
     if (it) {
-      el.text.value = it.text; el.font.value = it.font; el.color.value = it.color;
-      el.size.value = it.size; el.jitter.value = it.jitter; el.angle.value = it.angle;
+      el.kind.value = it.type; syncKind(); el.color.value = it.color; el.jitter.value = it.jitter;
+      if (isShape(it)) el.lw.value = it.lw;
+      else { el.text.value = it.text; el.font.value = it.font; el.size.value = it.size; el.angle.value = it.angle; }
     }
     updateChrome(); redrawAll();
   }
   function applyControls() {
     const it = byId(selectedId);
     if (!it) return;
-    it.text = el.text.value; it.font = el.font.value; it.color = el.color.value;
-    it.size = +el.size.value; it.jitter = +el.jitter.value; it.angle = +el.angle.value;
+    it.color = el.color.value; it.jitter = +el.jitter.value;
+    if (isShape(it)) { it.lw = +el.lw.value; redrawAll(); return; }
+    it.text = el.text.value; it.font = el.font.value;
+    it.size = +el.size.value; it.angle = +el.angle.value;
     if (!it.text.trim()) { items = items.filter((i) => i !== it); selectedId = null; updateChrome(); }
     ensureFont(it); redrawAll();
   }
-  for (const k of ["text", "font", "color", "size", "jitter", "angle"]) {
+  for (const k of ["text", "font", "color", "size", "jitter", "angle", "lw"]) {
     el[k].addEventListener("input", applyControls);
   }
+  // 「配置するもの」に応じて、関係する設定だけを表示する
+  function syncKind() {
+    const shape = el.kind.value !== "text";
+    document.querySelectorAll("#panel-hand [data-for-text]").forEach((n) => { n.hidden = shape; });
+    document.querySelectorAll("#panel-hand [data-for-shape]").forEach((n) => { n.hidden = !shape; });
+  }
+  el.kind.addEventListener("change", () => {
+    syncKind();
+    const it = byId(selectedId);
+    if (it && (isShape(it) !== (el.kind.value !== "text"))) select(null);   // 種類を変えたら選択は外す
+  });
+  syncKind();
   el.del.onclick = () => { items = items.filter((i) => i.id !== selectedId); selectedId = null; updateChrome(); redrawAll(); };
   el.clear.onclick = () => { items = []; selectedId = null; updateChrome(); redrawAll(); };
   document.addEventListener("keydown", (e) => {
@@ -151,6 +226,18 @@
       for (let i = items.length - 1; i >= 0; i--) {
         const it = items[i];
         if (it.page !== p) continue;
+        if (isShape(it)) {   // 四角・マルは内側ではなく「線の近く」だけを当たり判定にする（中に文字を置けるように）
+          const dx = q.x * W - it.x * W, dy = q.y * H - it.y * H, w = it.w * W, h = it.h * H, tol = 10;
+          if (it.type === "rect") {
+            const inOuter = dx >= -tol && dx <= w + tol && dy >= -tol && dy <= h + tol;
+            const inInner = dx > tol && dx < w - tol && dy > tol && dy < h - tol;
+            if (inOuter && !inInner) return it;
+          } else {
+            const nx = (dx - w / 2) / (w / 2 || 1), ny = (dy - h / 2) / (h / 2 || 1), rr = Math.hypot(nx, ny);
+            if (Math.abs(rr - 1) * Math.min(w, h) / 2 < tol) return it;
+          }
+          continue;
+        }
         const m = measure(ctx, it, s);
         const a = -it.angle * Math.PI / 180;
         const dx = q.x * W - it.x * W, dy = q.y * H - it.y * H;
@@ -167,9 +254,17 @@
         o.setPointerCapture(e.pointerId);
         drag = { it, ox: q.x - it.x, oy: q.y - it.y, moved: false };
         if (selectedId !== it.id) select(it.id);
+      } else if (el.kind.value !== "text") {
+        // 四角・マル：ドラッグで大きさを決める
+        o.setPointerCapture(e.pointerId);
+        const n = { id: ++seq, page: p, type: el.kind.value, x: q.x, y: q.y, w: 0, h: 0, color: el.color.value,
+          lw: +el.lw.value, jitter: +el.jitter.value, seed: (Math.random() * 1e9) | 0 };
+        items.push(n);
+        drag = { it: n, create: true, sx: q.x, sy: q.y };
+        select(n.id);
       } else if (el.text.value.trim()) {
         const size = +el.size.value;
-        const n = { id: ++seq, page: p, x: clamp01(q.x), y: clamp01(q.y - (size * 0.6) / (o.height / viewer.scale)),
+        const n = { id: ++seq, page: p, type: "text", x: clamp01(q.x), y: clamp01(q.y - (size * 0.6) / (o.height / viewer.scale)),
           text: el.text.value, font: el.font.value, color: el.color.value, size,
           jitter: +el.jitter.value, angle: +el.angle.value, seed: (Math.random() * 1e9) | 0 };
         items.push(n); ensureFont(n); select(n.id);
@@ -181,7 +276,12 @@
     });
     o.addEventListener("pointermove", (e) => {
       const q = norm(e);
-      if (drag) {
+      if (drag && drag.create) {
+        const it = drag.it;
+        it.x = clamp01(Math.min(q.x, drag.sx)); it.y = clamp01(Math.min(q.y, drag.sy));
+        it.w = Math.abs(clamp01(q.x) - drag.sx); it.h = Math.abs(clamp01(q.y) - drag.sy);
+        redraw(p);
+      } else if (drag) {
         drag.moved = true;
         drag.it.x = clamp01(q.x - drag.ox); drag.it.y = clamp01(q.y - drag.oy);
         redraw(p);
@@ -189,7 +289,19 @@
         o.style.cursor = hit(q) ? "move" : "text";
       }
     });
-    const end = () => { drag = null; };
+    const end = () => {
+      if (drag && drag.create) {
+        const it = drag.it;   // 小さすぎる（ほぼクリックだけ）なら追加しない
+        if (it.w * o.width < 12 || it.h * o.height < 12) {
+          items = items.filter((i) => i !== it); selectedId = null;
+          setStatus("四角・マルは、ページ上をドラッグして大きさを決めてください。");
+        } else {
+          setStatus(`p.${p} に${it.type === "rect" ? "四角" : "マル"}を追加しました。線をドラッグで移動、Deleteで削除できます。`);
+        }
+        updateChrome(); redrawAll();
+      }
+      drag = null;
+    };
     o.addEventListener("pointerup", end);
     o.addEventListener("pointercancel", end);
   }
@@ -224,7 +336,7 @@
     if (!pdf || !items.length) return;
     el.save.disabled = true; setSaveStatus("PDFに書き込み中…");
     try {
-      await Promise.all(items.map((it) => document.fonts.load(fontStr(it, 1).replace(/^[\d.]+px/, "24px"), it.text)));
+      await Promise.all(items.filter((it) => !isShape(it)).map((it) => document.fonts.load(fontStr(it, 1).replace(/^[\d.]+px/, "24px"), it.text)));
       const doc = await PDFDocument.load(pdfBytes, { updateMetadata: false });
       const pages = doc.getPages();
       const pagesWith = [...new Set(items.map((i) => i.page))].sort((a, b) => a - b);
@@ -246,7 +358,7 @@
         setSaveStatus(`書き込み中… ${p}ページ`);
       }
       triggerDownload(new Blob([await doc.save()], { type: "application/pdf" }), `${baseName}_hand.pdf`);
-      setSaveStatus(`保存しました（${items.length}件の文字を追加、ダウンロードを開始しました）。文字は画像として重ねているため、PDF上では選択・検索できません。`);
+      setSaveStatus(`保存しました（${items.length}件を追加、ダウンロードを開始しました）。書き込みは画像として重ねているため、PDF上では選択・検索できません。`);
     } catch (e) {
       setSaveStatus("保存に失敗しました: " + (e && e.message || e), true);
     } finally { updateChrome(); }

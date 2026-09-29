@@ -145,14 +145,22 @@
   <!-- ============ 手書き風文字追加 ============ -->
   <section class="tool-panel" id="panel-hand" data-panel="hand" hidden>
     <h2 class="panel-title">手書き風文字追加</h2>
-    <p class="panel-lead">ページ上をクリックすると、下で入力した文字が手書き風の書体で置かれます。置いた文字はドラッグで移動、選択中は下の設定で書き換えできます。</p>
+    <p class="panel-lead">文字はページをクリック、四角い囲み・マルはページ上をドラッグして、手書き風に入れられます。置いたものは線や文字をドラッグして移動、選択中は下の設定で変更できます（Deleteで削除）。</p>
 
     <div class="card toolbar">
-      <div class="field" style="flex:1 1 240px;min-width:220px">
+      <div class="field">
+        <label for="hw-kind">配置するもの</label>
+        <select id="hw-kind" class="text-input">
+          <option value="text">文字（クリックで配置）</option>
+          <option value="rect">四角い囲み（ドラッグ）</option>
+          <option value="ellipse">マル（ドラッグ）</option>
+        </select>
+      </div>
+      <div class="field" data-for-text style="flex:1 1 240px;min-width:220px">
         <label for="hw-text">追加する文字（改行可）</label>
         <textarea id="hw-text" class="text-input" rows="2" placeholder="例: 確認済み"></textarea>
       </div>
-      <div class="field">
+      <div class="field" data-for-text>
         <label for="hw-font">書体</label>
         <select id="hw-font" class="text-input">
           <option value="Yomogi">よもぎ（やわらかい）</option>
@@ -162,9 +170,10 @@
         </select>
       </div>
       <div class="field"><label for="hw-color">色</label><input id="hw-color" type="color" value="#1d3fa8"></div>
-      <div class="field"><label for="hw-size">大きさ</label><input id="hw-size" type="range" min="10" max="72" value="24"></div>
+      <div class="field" data-for-text><label for="hw-size">大きさ</label><input id="hw-size" type="range" min="10" max="72" value="24"></div>
+      <div class="field" data-for-shape hidden><label for="hw-lw">線の太さ</label><input id="hw-lw" type="range" min="1" max="8" step="0.5" value="2.5"></div>
       <div class="field"><label for="hw-jitter">ゆらぎ</label><input id="hw-jitter" type="range" min="0" max="100" value="45"></div>
-      <div class="field"><label for="hw-angle">傾き</label><input id="hw-angle" type="range" min="-30" max="30" value="-2"></div>
+      <div class="field" data-for-text><label for="hw-angle">傾き</label><input id="hw-angle" type="range" min="-30" max="30" value="-2"></div>
     </div>
     <div class="card toolbar">
       <span class="badge" id="hw-count">文字: 0</span>
@@ -318,7 +327,7 @@
 
 <script src="common.js?v=1"></script>
 <script src="redact.js?v=1"></script>
-<script src="hand.js?v=1"></script>
+<script src="hand.js?v=3"></script>
 <script src="pages.js?v=1"></script>
 <script src="meta.js?v=1"></script>
 <script src="app.js?v=1"></script>
