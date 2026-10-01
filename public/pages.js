@@ -65,14 +65,22 @@
     }
   }
 
+  // 回転の連打などで同じcanvasへ描画が重なると pdf.js が例外を投げるため、前の描画を中断してから描く
   async function renderThumb(canvas, info) {
+    const token = (info.renderToken = (info.renderToken || 0) + 1);
+    if (info.task) { info.task.cancel(); try { await info.task.promise; } catch { /* cancelled */ } }
+    if (token !== info.renderToken) return;   // さらに新しい描画が予約された
     const dpr = window.devicePixelRatio || 1;
     const rotation = (info.jsPage.rotate + info.rot) % 360;
     const vp1 = info.jsPage.getViewport({ scale: 1, rotation });
     const scale = (THUMB * dpr) / Math.max(vp1.width, vp1.height);
     const vp = info.jsPage.getViewport({ scale, rotation });
     canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
-    await info.jsPage.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+    const task = info.jsPage.render({ canvasContext: canvas.getContext("2d"), viewport: vp });
+    info.task = task;
+    try { await task.promise; }
+    catch (e) { if (!(e && e.name === "RenderingCancelledException")) console.error(e); }
+    finally { if (info.task === task) info.task = null; }
   }
 
   function mkBtn(cls, text, label, onClick) {

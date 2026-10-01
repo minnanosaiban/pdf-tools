@@ -213,11 +213,16 @@
   };
   function updateChrome() {
     el.erUndo.disabled = eraseHistory.length === 0;
-    el.count.textContent = `要素: ${items.length}`;
+    el.count.textContent = `要素: ${items.filter((i) => !isBlankText(i)).length}`;
     el.del.disabled = selectedId == null;
-    el.save.disabled = !pdf || items.length === 0;
+    el.save.disabled = !pdf || !items.some((i) => !isBlankText(i));
   }
+  const isBlankText = (it) => it.type === "text" && !it.text.trim();
   function select(id) {
+    if (selectedId != null && selectedId !== id) {   // 空の文字要素は、選択を外した時点で削除
+      const prev = byId(selectedId);
+      if (prev && isBlankText(prev)) items = items.filter((i) => i !== prev);
+    }
     selectedId = id;
     const it = byId(id);
     if (it) {
@@ -234,8 +239,8 @@
     if (isShape(it)) { it.lw = +el.lw.value; redrawAll(); return; }
     it.text = el.text.value; it.font = el.font.value;
     it.size = +el.size.value; it.angle = +el.angle.value;
-    if (!it.text.trim()) { items = items.filter((i) => i !== it); selectedId = null; updateChrome(); }
-    ensureFont(it); redrawAll();
+    // 入力欄を空にしても要素は消さない（打ち直せるように位置・消しゴム履歴を保持）。空のまま選択を外した時に片付ける。
+    updateChrome(); ensureFont(it); redrawAll();
   }
   for (const k of ["text", "font", "color", "size", "jitter", "angle", "lw"]) {
     el[k].addEventListener("input", applyControls);
@@ -405,17 +410,20 @@
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
       pdfBytes = buf.slice();
-      pdf = await pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise;
+      const doc = await pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise;
+      pdf = doc;
       items = []; eraseHistory.length = 0; selectedId = null;
-      await viewer.load(pdf);
+      await viewer.load(doc);
       // 画面のpx/ptを求めるため、各ページのpt幅を記録（scale 1 の幅）
-      for (let p = 1; p <= pdf.numPages; p++) {
-        viewer.dom[p].ptW = (await pdf.getPage(p)).getViewport({ scale: 1 }).width;
+      for (let p = 1; p <= doc.numPages; p++) {
+        const w = (await doc.getPage(p)).getViewport({ scale: 1 }).width;
+        if (pdf !== doc || !viewer.dom[p]) return;   // 読み込み中に別のファイルが選ばれた
+        viewer.dom[p].ptW = w;
       }
       baseName = file.name.replace(/\.pdf$/i, "") || "pdf";
       setStatus(`${file.name}（${pdf.numPages}ページ）を読み込みました。上に文字を入力し、置きたい場所をクリックしてください。`);
     } catch (e) {
-      pdf = null;
+      pdf = null; items = []; eraseHistory.length = 0; selectedId = null; viewer.reset();   // 古いページ表示を残さない
       setStatus(/password|encrypt/i.test(String(e && e.message || e)) ? "パスワード保護されたPDFには対応していません。" : "PDFを読み込めませんでした。", true);
     }
     updateChrome();
@@ -423,13 +431,15 @@
 
   // ---- 保存 ----
   el.save.onclick = async () => {
-    if (!pdf || !items.length) return;
+    if (!pdf) return;
+    const out = items.filter((i) => !isBlankText(i));   // 空の文字は書き出さない
+    if (!out.length) return;
     el.save.disabled = true; setSaveStatus("PDFに書き込み中…");
     try {
-      await Promise.all(items.filter((it) => !isShape(it)).map((it) => document.fonts.load(fontStr(it, 1).replace(/^[\d.]+px/, "24px"), it.text)));
+      await Promise.all(out.filter((it) => !isShape(it)).map((it) => document.fonts.load(fontStr(it, 1).replace(/^[\d.]+px/, "24px"), it.text)));
       const doc = await PDFDocument.load(pdfBytes, { updateMetadata: false });
       const pages = doc.getPages();
-      const pagesWith = [...new Set(items.map((i) => i.page))].sort((a, b) => a - b);
+      const pagesWith = [...new Set(out.map((i) => i.page))].sort((a, b) => a - b);
       for (const p of pagesWith) {
         const pg = pdf ? await pdf.getPage(p) : null;
         const vis = pg.getViewport({ scale: 1 });                 // 見た目（回転込み）の寸法pt
@@ -437,18 +447,19 @@
         const c = document.createElement("canvas");
         c.width = Math.round(vis.width * k); c.height = Math.round(vis.height * k);
         const ctx = c.getContext("2d");
-        for (const it of items) if (it.page === p) drawItem(ctx, it, c.width, c.height, k);
+        for (const it of out) if (it.page === p) drawItem(ctx, it, c.width, c.height, k);
         const blob = await new Promise((res) => c.toBlob(res, "image/png"));
         const img = await doc.embedPng(new Uint8Array(await blob.arrayBuffer()));
         const target = pages[p - 1];
-        const { width: pw, height: ph } = target.getSize();
+        // pdf.jsの表示領域はCropBox基準。原点が(0,0)でない・CropBoxがMediaBoxより小さいPDFでもずれないよう、CropBoxの位置と寸法を使う
+        const { x: cx0, y: cy0, width: pw, height: ph } = target.getCropBox();
         const R = ((target.getRotation().angle % 360) + 360) % 360;
-        const pos = { 0: [0, 0], 90: [pw, 0], 180: [pw, ph], 270: [0, ph] }[R] || [0, 0];
+        const pos = { 0: [cx0, cy0], 90: [cx0 + pw, cy0], 180: [cx0 + pw, cy0 + ph], 270: [cx0, cy0 + ph] }[R] || [cx0, cy0];
         target.drawImage(img, { x: pos[0], y: pos[1], width: vis.width, height: vis.height, rotate: degrees(R) });
         setSaveStatus(`書き込み中… ${p}ページ`);
       }
       triggerDownload(new Blob([await doc.save()], { type: "application/pdf" }), `${baseName}_hand.pdf`);
-      setSaveStatus(`保存しました（${items.length}件を追加、ダウンロードを開始しました）。書き込みは画像として重ねているため、PDF上では選択・検索できません。`);
+      setSaveStatus(`保存しました（${out.length}件を追加、ダウンロードを開始しました）。書き込みは画像として重ねているため、PDF上では選択・検索できません。`);
     } catch (e) {
       setSaveStatus("保存に失敗しました: " + (e && e.message || e), true);
     } finally { updateChrome(); }

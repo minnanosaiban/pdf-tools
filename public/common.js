@@ -42,16 +42,22 @@ class PageViewer {
     this.onRendered = onRendered;   // (p, dom) 描画完了時
     this.decorate = decorate;       // (p, dom) ページ枠を作った直後（ヘッダーボタン追加・イベント付与用）
     this.pdf = null; this.dom = {}; this.io = null; this.paused = false;
+    this.gen = 0;   // 読み込みの世代。古い読み込み・描画が新しいものを上書きしないための番号
   }
   reset() {
+    this.gen++;
     if (this.io) { this.io.disconnect(); this.io = null; }
     this.container.innerHTML = "";
-    this.dom = {}; this.pdf = null;
+    // dom は呼び出し側が参照を保持するので、作り直さず中身だけ空にする
+    for (const k of Object.keys(this.dom)) delete this.dom[k];
+    if (this.pdf) { const old = this.pdf; this.pdf = null; Promise.resolve(old.destroy()).catch(() => {}); }   // ワーカー側のメモリを解放
   }
   async load(pdf) {
     this.reset();
+    const gen = this.gen;
     this.pdf = pdf;
     const p1 = await pdf.getPage(1);
+    if (gen !== this.gen) return;   // 待っている間に別のファイルが選ばれた
     const vp1 = p1.getViewport({ scale: this.scale });
     for (let p = 1; p <= pdf.numPages; p++) {
       const wrap = document.createElement("div"); wrap.className = "page"; wrap.dataset.page = p;
@@ -81,17 +87,22 @@ class PageViewer {
     if (this.paused) return;
     const d = this.dom[p];
     if (!d || d.rendered || d.rendering) return;
+    const gen = this.gen, pdf = this.pdf;
     d.rendering = true;
     try {
-      const page = await this.pdf.getPage(p);
+      const page = await pdf.getPage(p);
+      if (gen !== this.gen) return;
       const vp = page.getViewport({ scale: this.scale });
       d.stage.style.width = vp.width + "px";
       d.stage.style.aspectRatio = `${vp.width} / ${vp.height}`;
       d.view.width = d.overlay.width = Math.floor(vp.width);
       d.view.height = d.overlay.height = Math.floor(vp.height);
       await page.render({ canvasContext: d.view.getContext("2d"), viewport: vp }).promise;
+      if (gen !== this.gen) return;
       d.rendered = true;
       if (this.onRendered) this.onRendered(p, d);
+    } catch (e) {
+      if (gen === this.gen) console.error(e);   // 読み込み直しによる中断は無視
     } finally { d.rendering = false; }
   }
   free(p) {

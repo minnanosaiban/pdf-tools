@@ -256,7 +256,7 @@
   <!-- ============ メタデータ編集削除 ============ -->
   <section class="tool-panel" id="panel-meta" data-panel="meta" hidden>
     <h2 class="panel-title">メタデータ編集削除</h2>
-    <p class="panel-lead">PDFの「文書のプロパティ」を編集・削除します。個人情報を含む項目の削除や、検索されやすいタイトル設定に使えます。</p>
+    <p class="panel-lead">PDFの「文書のプロパティ」を編集・削除します。個人情報を含む項目の削除や、検索されやすいタイトル設定に使えます。編集できるのはタイトル・作成者・サブジェクト・キーワード・作成アプリ・変換アプリ（と作成日の置き換え）で、XMPメタデータは対象外です。</p>
 
     <div class="card toolbar">
       <label class="btn-outline filebtn" id="md-drop" style="cursor:pointer">
@@ -270,7 +270,7 @@
       </button>
       <input type="file" id="md-folderInput" webkitdirectory multiple hidden>
       <span class="badge" id="md-filename" hidden></span>
-      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。フォルダ選択では直下のPDFのタイトル・作成者をExcelのように一覧編集できます（サブフォルダは対象外）。ブラウザの確認ダイアログ（「アップロードしますか？」等）は読み取り許可の確認で、外部への送信はありません。</p>
+      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。フォルダ選択では直下のPDFのタイトル・作成者をExcelのように一覧編集できます（サブフォルダは対象外。サブジェクト・キーワード等は1件ずつ編集してください）。ブラウザの確認ダイアログ（「アップロードしますか？」等）は読み取り許可の確認で、外部への送信はありません。</p>
     </div>
 
     <p class="status" id="md-status">「PDFを選ぶ」で1件、または「フォルダを選んで一覧表示」で複数まとめて編集できます。</p>
@@ -290,6 +290,14 @@
         <details class="advanced">
           <summary>詳しい項目（作成アプリ・作成日など）</summary>
           <div class="field-group">
+            <div class="field-label">サブジェクト（件名）</div>
+            <input type="text" class="text-input" id="md-fSubject" placeholder="（未設定）">
+          </div>
+          <div class="field-group">
+            <div class="field-label">キーワード</div>
+            <input type="text" class="text-input" id="md-fKeywords" placeholder="（未設定）">
+          </div>
+          <div class="field-group">
             <div class="field-label">作成アプリ（例: Microsoft Word）</div>
             <input type="text" class="text-input" id="md-fCreator" placeholder="（未設定）">
           </div>
@@ -300,7 +308,8 @@
           <div class="field-group readonly-info">
             <div class="info-row"><span class="info-label">作成日</span><span id="md-iCreationDate">—</span></div>
             <div class="info-row"><span class="info-label">更新日</span><span id="md-iModDate">—</span></div>
-            <p class="field-hint-plain">作成日・更新日はこのツールでは編集できません。保存すると更新日は自動的に現在の日時になります。</p>
+            <label class="field-hint-plain" style="display:block;cursor:pointer"><input type="checkbox" id="md-resetCreation"> 作成日も現在の日時に置き換える（元の作成日は残りません）</label>
+            <p class="field-hint-plain">保存すると更新日は自動的に現在の日時になります。※XMPメタデータや、本文・画像・しおり等に含まれる情報はこのツールでは削除されません。</p>
           </div>
         </details>
         <div class="toolbar">
@@ -344,11 +353,11 @@
   </div>
 </footer>
 
-<script src="common.js?v=1"></script>
-<script src="redact.js?v=2"></script>
-<script src="hand.js?v=5"></script>
-<script src="pages.js?v=2"></script>
-<script src="meta.js?v=1"></script>
+<script src="common.js?v=2"></script>
+<script src="redact.js?v=3"></script>
+<script src="hand.js?v=6"></script>
+<script src="pages.js?v=3"></script>
+<script src="meta.js?v=2"></script>
 <script src="app.js?v=1"></script>
 </body>
 </html>

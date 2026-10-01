@@ -7,11 +7,12 @@
   const fileInput = $("md-file"), folderInput = $("md-folderInput");
   const filenameEl = $("md-filename"), statusEl = $("md-status");
   const editArea = $("md-editArea"), folderArea = $("md-folderArea");
+  const fSubject = $("md-fSubject"), fKeywords = $("md-fKeywords"), resetCreation = $("md-resetCreation");
   const fTitle = $("md-fTitle"), fAuthor = $("md-fAuthor"), fCreator = $("md-fCreator"), fProducer = $("md-fProducer");
   const saveBtn = $("md-save"), saveStatus = $("md-saveStatus");
   const folderBody = $("md-folderBody"), folderSaveAll = $("md-folderSaveAll"), folderSaveAllStatus = $("md-folderSaveAllStatus");
 
-  let pdfDoc = null, baseName = "pdf", folderRows = [];
+  let pdfDoc = null, baseName = "pdf", folderRows = [], orig = {};   // orig: 読み込み時のサブジェクト・キーワード（変更時のみ書き戻す）
 
   function setMode(mode) { editArea.hidden = mode !== "single"; folderArea.hidden = mode !== "folder"; }
   function setStatus(t, err) { statusEl.textContent = t || ""; statusEl.classList.toggle("is-error", !!err); }
@@ -34,6 +35,8 @@
     filenameEl.hidden = false; filenameEl.textContent = file.name;
     fTitle.value = pdfDoc.getTitle() || ""; fAuthor.value = pdfDoc.getAuthor() || "";
     fCreator.value = pdfDoc.getCreator() || ""; fProducer.value = pdfDoc.getProducer() || "";
+    orig = { subject: pdfDoc.getSubject() || "", keywords: pdfDoc.getKeywords() || "" };
+    fSubject.value = orig.subject; fKeywords.value = orig.keywords; resetCreation.checked = false;
     $("md-iCreationDate").textContent = formatDate(pdfDoc.getCreationDate());
     $("md-iModDate").textContent = formatDate(pdfDoc.getModificationDate());
     setSaveStatus(""); setStatus(`「${file.name}」を編集しています。`); setMode("single");
@@ -42,7 +45,7 @@
   fileInput.addEventListener("change", () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ""; });
   wireDrop($("md-drop"), (fs) => loadFile(fs[0]));
 
-  $("md-clearAll").addEventListener("click", () => { fTitle.value = fAuthor.value = fCreator.value = fProducer.value = ""; });
+  $("md-clearAll").addEventListener("click", () => { fTitle.value = fAuthor.value = fCreator.value = fProducer.value = fSubject.value = fKeywords.value = ""; });
 
   saveBtn.addEventListener("click", async () => {
     if (!pdfDoc) return;
@@ -50,6 +53,10 @@
     try {
       pdfDoc.setTitle(fTitle.value.trim()); pdfDoc.setAuthor(fAuthor.value.trim());
       pdfDoc.setCreator(fCreator.value.trim()); pdfDoc.setProducer(fProducer.value.trim());
+      // サブジェクト・キーワードは、変更した時だけ書き戻す（キーワードは再区切りで表記が変わりうるため）
+      if (fSubject.value.trim() !== orig.subject.trim()) pdfDoc.setSubject(fSubject.value.trim());
+      if (fKeywords.value.trim() !== orig.keywords.trim()) pdfDoc.setKeywords(fKeywords.value.split(/[\s,、]+/).filter(Boolean));
+      if (resetCreation.checked) pdfDoc.setCreationDate(new Date());
       pdfDoc.setModificationDate(new Date());
       triggerDownload(new Blob([await pdfDoc.save()], { type: "application/pdf" }), `${baseName}_meta.pdf`);
       setSaveStatus("保存しました（ダウンロードを開始しました）");

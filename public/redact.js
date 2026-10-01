@@ -71,9 +71,10 @@
     setSearchUI(false, "判定中…");
     try {
       const buf = await file.arrayBuffer();
-      pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
-      numPages = pdf.numPages;
-      await viewer.load(pdf);
+      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
+      pdf = doc; numPages = doc.numPages;
+      await viewer.load(doc);
+      if (pdf !== doc) return;   // 読み込み中に別のファイルが選ばれた
       searchable = await detectSearchable();
       setSearchUI(searchable);
       const mode = searchable
@@ -81,7 +82,7 @@
         : "スキャンPDF（文字なし）です。文字検索は使えません。各ページをドラッグで墨消ししてください。";
       setStatus(`${file.name}（${numPages}ページ）を読み込みました。${mode} 枠はクリックで削除。`);
     } catch (e) {
-      pdf = null;
+      pdf = null; viewer.reset();   // 古いページ表示を残さない
       setSearchUI(false, "—");
       setStatus(/password|encrypt/i.test(String(e && e.message || e)) ? "パスワード保護されたPDFには対応していません。" : "PDFを読み込めませんでした。");
     }
