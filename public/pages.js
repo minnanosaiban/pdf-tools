@@ -50,7 +50,7 @@
 
   async function addOne(file) {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const doc = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;   // pdf.jsはバッファをtransferし得るためコピーを渡す
+    const doc = await pdfjsLib.getDocument({ data: bytes.slice(), isEvalSupported: false }).promise;   // pdf.jsはバッファをtransferし得るためコピーを渡す
     const sourceId = `s${++sourceSeq}`;
     sources.set(sourceId, { name: file.name, bytes });
     for (let i = 1; i <= doc.numPages; i++) {

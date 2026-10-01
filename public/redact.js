@@ -17,6 +17,14 @@
   const rectsOf = (p) => rectsByPage[p] || (rectsByPage[p] = []);
   const totalBoxes = () => Object.values(rectsByPage).reduce((n, a) => n + a.length, 0);
   const updateCount = () => { countEl.textContent = `枠: ${totalBoxes()}`; };
+  // 枠を変えたら、すでに生成済みの出力は古くなる（新しい枠が入っていない）ので破棄する。
+  // editVersion は「適用中に枠が編集された」ことを検出するための世代番号。
+  let editVersion = 0;
+  function invalidateOutput() {
+    editVersion++;
+    if (outputBlob) setApplyStatus("枠を変更したため、先ほどの出力は無効です。もう一度「墨消し適用」を押してください。");
+    outputBlob = null; dlBtn.disabled = true;
+  }
 
   const viewer = new PageViewer($("rd-pages"), {
     scale: 1.5,
@@ -28,7 +36,7 @@
       clr.onclick = () => {
         rectsByPage[p] = [];
         for (let i = history.length - 1; i >= 0; i--) if (history[i] === p) history.splice(i, 1);
-        d.redacted = false; drawOverlay(p); updateCount();
+        d.redacted = false; drawOverlay(p); updateCount(); invalidateOutput();
       };
       d.head.appendChild(clr);
       attachDraw(p, d);
@@ -45,13 +53,13 @@
     if (p == null) return;
     rectsOf(p).pop();
     if (dom[p]) dom[p].redacted = false;
-    drawOverlay(p); updateCount();
+    drawOverlay(p); updateCount(); invalidateOutput();
   };
   $("rd-clear").onclick = () => {
     for (const k of Object.keys(rectsByPage)) rectsByPage[k] = [];
     history.length = 0;
     for (const k of Object.keys(dom)) { dom[k].redacted = false; drawOverlay(+k); }
-    updateCount();
+    updateCount(); invalidateOutput();
   };
   $("rd-search").onclick = () => searchAndAdd(qInput.value);
   qInput.addEventListener("keydown", (e) => { if (e.key === "Enter") searchAndAdd(qInput.value); });
@@ -63,7 +71,7 @@
     setSearchUI(false, "判定中…");
     try {
       const buf = await file.arrayBuffer();
-      pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+      pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
       numPages = pdf.numPages;
       await viewer.load(pdf);
       searchable = await detectSearchable();
@@ -150,43 +158,69 @@
   }
 
   // ---- 文字検索して墨消し枠を自動追加（サーチャブルPDFのみ） ----
+  // pdf.jsは1行を複数のテキスト断片に分けることがある。断片ごとに探すと断片をまたぐ語を見落とすので、
+  // ページ内の全断片を1本の文字列に連結して探し、ヒット範囲を断片ごとの枠に分けて返す。
+  // 照合は全角/半角・大文字/小文字・空白の違いを無視する（NFKC正規化＋空白除去）。
+  const fold = (ch) => ch.normalize("NFKC").toLowerCase().replace(/\s+/g, "");
+
   async function searchAndAdd(term) {
     term = (term || "").trim();
     if (!term) return;
     if (!searchable) { setStatus("このPDFは文字が埋め込まれていないため検索できません。ドラッグで囲ってください。"); return; }
-    const needle = term.toLowerCase();
+    const needle = Array.from(term).map(fold).join("");
+    if (!needle) return;
     let added = 0;
     for (let p = 1; p <= numPages; p++) {
       const page = await pdf.getPage(p);
       const vp = page.getViewport({ scale: 1 });
-      const tc = await page.getTextContent();
-      for (const it of tc.items) {
-        const s = it.str || "";
-        if (!s) continue;
-        const hay = s.toLowerCase();
-        let idx = hay.indexOf(needle);
-        while (idx !== -1) {
-          const box = itemRect(it, idx, idx + term.length, vp);
-          if (box) { rectsOf(p).push(box); history.push(p); added++; }
-          idx = hay.indexOf(needle, idx + 1);
+      const items = (await page.getTextContent()).items.filter((it) => typeof it.str === "string" && it.str);
+      let hay = "";
+      const owner = [], pos = [];   // hay の各文字が、どの断片(owner)の何文字目(pos)に由来するか
+      items.forEach((it, ii) => {
+        for (let ci = 0; ci < it.str.length; ci++) {
+          for (const f of fold(it.str[ci])) { hay += f; owner.push(ii); pos.push(ci); }
         }
+      });
+      let idx = hay.indexOf(needle);
+      while (idx !== -1) {
+        const spans = new Map();   // 断片 → ヒット範囲 [start, end)
+        for (let k = idx; k < idx + needle.length; k++) {
+          const sp = spans.get(owner[k]);
+          if (sp) { sp[0] = Math.min(sp[0], pos[k]); sp[1] = Math.max(sp[1], pos[k] + 1); }
+          else spans.set(owner[k], [pos[k], pos[k] + 1]);
+        }
+        for (const [ii, [a, b]] of spans) {
+          const box = itemRect(items[ii], a, b, vp);
+          if (box) { rectsOf(p).push(box); history.push(p); added++; }
+        }
+        idx = hay.indexOf(needle, idx + 1);
       }
       if (dom[p]) dom[p].redacted = false;
       drawOverlay(p);
     }
     updateCount();
+    if (added) invalidateOutput();
     setStatus(added
-      ? `「${term}」に ${added} 箇所の墨消し枠を追加しました。位置がずれていないか確認し、不要な枠はクリックで削除してください。`
-      : `「${term}」は見つかりませんでした。`);
+      ? `「${term}」に ${added} 箇所の墨消し枠を追加しました。自動検索は取りこぼし・位置ずれがありえます。全ページを目視で確認し、不足は手動で囲み、不要な枠はクリックで削除してください。`
+      : `「${term}」は見つかりませんでした。文字が画像化されている箇所などは検索できないため、目視で確認してください。`);
   }
+
+  // 断片内の文字位置は等幅では決められないので、全角(CJK等)=1・それ以外=0.55 の重みで按分する
+  const charW = (ch) => (ch.charCodeAt(0) >= 0x2E80 ? 1 : 0.55);
 
   function itemRect(it, start, end, vp) {
     const tx = pdfjsLib.Util.transform(vp.transform, it.transform);
     const fh = Math.hypot(tx[2], tx[3]);
     const width = it.width;
     if (!width || !fh) return null;
-    const len = it.str.length || 1;
-    const left = tx[4] + width * (start / len), right = tx[4] + width * (end / len);
+    let before = 0, inside = 0, total = 0;
+    for (let i = 0; i < it.str.length; i++) {
+      const w = charW(it.str[i]);
+      total += w;
+      if (i < start) before += w; else if (i < end) inside += w;
+    }
+    if (!total) return null;
+    const left = tx[4] + width * (before / total), right = left + width * (inside / total);
     const top = tx[5] - fh;
     const padX = fh * 0.12, padY = fh * 0.18;
     const x = clamp01((Math.min(left, right) - padX) / vp.width);
@@ -237,17 +271,19 @@
     o.addEventListener("pointerup", (e) => {
       if (!start) return;
       const q = norm(e);
+      let changed = false;
       if (moved) {
         const r = rf(start, q);
-        if (r.w > 0.005 && r.h > 0.005) { rectsOf(p).push(r); history.push(p); }
+        if (r.w > 0.005 && r.h > 0.005) { rectsOf(p).push(r); history.push(p); changed = true; }
       } else {
         const arr = rectsOf(p), idx = hitIndex(arr, q);
         if (idx !== -1) {
-          arr.splice(idx, 1);
+          arr.splice(idx, 1); changed = true;
           for (let j = history.length - 1; j >= 0; j--) if (history[j] === p) { history.splice(j, 1); break; }
         }
       }
       start = null; moved = false; d.preview = null; d.redacted = false; d.hoverIndex = -1; drawOverlay(p); updateCount();
+      if (changed) invalidateOutput();
     });
   }
 
@@ -258,6 +294,7 @@
     const total = totalBoxes();
     const dpi = parseInt(dpiSel.value, 10), scale = dpi / 72;
     dlBtn.disabled = true; outputBlob = null; applying = true;
+    const versionAtStart = editVersion;
     viewer.pause();
     setApplyStatus(`墨消しを適用中…（${total}枠 / ${dpi}dpi）`);
     try {
@@ -280,6 +317,10 @@
       }
       out.setTitle(""); out.setAuthor(""); out.setSubject(""); out.setKeywords([]);
       out.setProducer("pdf-tools"); out.setCreator("pdf-tools");
+      if (editVersion !== versionAtStart) {   // 適用中に枠が編集された＝出力に反映されていない
+        setApplyStatus("適用中に枠が変更されたため、出力を破棄しました。もう一度「墨消し適用」を押してください。");
+        return;
+      }
       outputBlob = new Blob([await out.save()], { type: "application/pdf" });
       dlBtn.disabled = false;
       setApplyStatus(`完了：${numPages}ページをラスタライズし ${total}箇所を黒塗りしました。下地の画素・文字は出力に含まれません（出力は画像PDF＝文字検索不可）。DL後、PDFを開いて墨消し漏れがないか目視確認してください。`);

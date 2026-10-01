@@ -405,7 +405,7 @@
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
       pdfBytes = buf.slice();
-      pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      pdf = await pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise;
       items = []; eraseHistory.length = 0; selectedId = null;
       await viewer.load(pdf);
       // 画面のpx/ptを求めるため、各ページのpt幅を記録（scale 1 の幅）
