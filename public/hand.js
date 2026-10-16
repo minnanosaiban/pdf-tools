@@ -210,6 +210,20 @@
     return m;
   }
 
+  // ---- 大きさ変更のつまみ ----
+  // 四角・マル・{ }・矢印は四隅、文字は右下のつまみをドラッグして大きさを変える。canvas上のpx座標で返す
+  const HANDLE_R = 6, HANDLE_HIT = 12;
+  function handlePoints(ctx, it, W, H, s) {
+    if (isShape(it)) {
+      const x = it.x * W, y = it.y * H, w = it.w * W, h = it.h * H;
+      return [[0, 0], [1, 0], [0, 1], [1, 1]].map(([cx, cy]) => ({ cx, cy, x: x + cx * w, y: y + cy * h }));
+    }
+    const m = measure(ctx, it, s), a = it.angle * Math.PI / 180, lx = m.w + 4, ly = m.h + 4;   // 選択枠の右下
+    return [{ text: true, cx: 1, cy: 1, x: it.x * W + lx * Math.cos(a) - ly * Math.sin(a), y: it.y * H + lx * Math.sin(a) + ly * Math.cos(a) }];
+  }
+  const MIN_PT = 6, MAX_PT = 300;
+  const clampPt = (v, def) => Math.min(MAX_PT, Math.max(MIN_PT, Math.round(+v) || def));
+
   function redraw(p) {
     const d = viewer.dom[p];
     if (!d || !d.rendered) return;
@@ -225,6 +239,10 @@
         if (!isShape(it)) ctx.rotate(it.angle * Math.PI / 180);
         ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(30,33,38,.75)";
         ctx.strokeRect(-4, -4, m.w + 8, m.h + 8);
+        ctx.restore();
+        ctx.save();
+        ctx.fillStyle = "#fff"; ctx.strokeStyle = "rgba(30,33,38,.9)"; ctx.lineWidth = 1.5;
+        for (const hp of handlePoints(ctx, it, W, H, s)) { ctx.fillRect(hp.x - HANDLE_R, hp.y - HANDLE_R, HANDLE_R * 2, HANDLE_R * 2); ctx.strokeRect(hp.x - HANDLE_R, hp.y - HANDLE_R, HANDLE_R * 2, HANDLE_R * 2); }
         ctx.restore();
       }
     }
@@ -285,7 +303,7 @@
     it.color = el.color.value; it.jitter = +el.jitter.value;
     if (isShape(it)) { it.lw = +el.lw.value; redrawAll(); return; }
     it.text = el.text.value; it.font = el.font.value;
-    it.size = +el.size.value; it.angle = +el.angle.value;
+    it.size = clampPt(el.size.value, it.size); it.angle = +el.angle.value;
     // 入力欄を空にしても要素は消さない（打ち直せるように位置・消しゴム履歴を保持）。空のまま選択を外した時に片付ける。
     updateChrome(); ensureFont(it); redrawAll();
   }
@@ -373,6 +391,12 @@
         st.stroke.pts.push([lx / s, ly / s]);
       }
     };
+    const hitHandle = (q) => {
+      const sel = byId(selectedId);
+      if (!sel || sel.page !== p || el.kind.value === "eraser") return null;
+      const W = o.width, H = o.height, s = W / (d.ptW || (W / viewer.scale));
+      return handlePoints(o.getContext("2d"), sel, W, H, s).find((h) => Math.hypot(h.x - q.x * W, h.y - q.y * H) <= HANDLE_HIT) || null;
+    };
     let drag = null;
     o.addEventListener("pointerdown", (e) => {
       if (!d.rendered) return;
@@ -381,6 +405,14 @@
         o.setPointerCapture(e.pointerId);
         drag = { erase: true, strokes: new Map() };
         eraseAt(q, drag); d.eraserPos = q; redraw(p);
+        return;
+      }
+      const hp = hitHandle(q);
+      if (hp) {   // 選択中の要素のつまみ：大きさを変える
+        o.setPointerCapture(e.pointerId);
+        const sel = byId(selectedId), W = o.width, H = o.height, s = W / (d.ptW || (W / viewer.scale));
+        drag = { resize: true, it: sel, h: hp, F: { x: sel.x + (1 - hp.cx) * sel.w, y: sel.y + (1 - hp.cy) * sel.h },
+          size0: sel.size, w0: isShape(sel) ? 0 : measure(o.getContext("2d"), sel, s).w };
         return;
       }
       const it = hit(q);
@@ -397,7 +429,7 @@
         drag = { it: n, create: true, sx: q.x, sy: q.y };
         select(n.id);
       } else if (el.text.value.trim()) {
-        const size = +el.size.value;
+        const size = clampPt(el.size.value, 24);
         const n = { id: ++seq, page: p, type: "text", x: clamp01(q.x), y: clamp01(q.y - (size * 0.6) / (o.height / viewer.scale)),
           text: el.text.value, font: el.font.value, color: el.color.value, size,
           jitter: +el.jitter.value, angle: +el.angle.value, seed: (Math.random() * 1e9) | 0 };
@@ -415,7 +447,27 @@
         d.eraserPos = q; o.style.cursor = "none"; redraw(p);
         return;
       }
-      if (drag && drag.create) {
+      if (drag && drag.resize) {
+        const it = drag.it;
+        if (isShape(it)) {
+          const F = drag.F, P = { x: clamp01(q.x), y: clamp01(q.y) }, pw = it.w, ph = it.h;
+          if (it.type === "arrow") {
+            const startMoves = (it.fx ? 1 : 0) === drag.h.cx && (it.fy ? 1 : 0) === drag.h.cy;
+            it.fx = startMoves ? P.x > F.x : F.x > P.x; it.fy = startMoves ? P.y > F.y : F.y > P.y;
+          }
+          it.x = Math.min(F.x, P.x); it.y = Math.min(F.y, P.y); it.w = Math.abs(P.x - F.x); it.h = Math.abs(P.y - F.y);
+          if (it.erase && pw > 1e-6 && ph > 1e-6) {   // 消した跡も、図形の拡大縮小についてくる
+            const rx = it.w / pw, ry = it.h / ph;
+            for (const st of it.erase) st.pts = st.pts.map(([px, py]) => [px * rx, py * ry]);
+          }
+        } else {
+          const W = o.width, H = o.height, a = it.angle * Math.PI / 180, dx = q.x * W - it.x * W, dy = q.y * H - it.y * H;
+          const lx = dx * Math.cos(a) + dy * Math.sin(a);   // 文字の向きに合わせた横方向の位置
+          it.size = clampPt(drag.size0 * Math.max(lx - 4, 1) / (drag.w0 || 1), drag.size0);
+          el.size.value = it.size;
+        }
+        redraw(p);
+      } else if (drag && drag.create) {
         const it = drag.it;
         it.fx = q.x < drag.sx; it.fy = q.y < drag.sy;   // 矢印の向き（始点がどの角か）
         it.x = clamp01(Math.min(q.x, drag.sx)); it.y = clamp01(Math.min(q.y, drag.sy));
@@ -426,7 +478,8 @@
         drag.it.x = clamp01(q.x - drag.ox); drag.it.y = clamp01(q.y - drag.oy);
         redraw(p);
       } else {
-        o.style.cursor = hit(q) ? "move" : "text";
+        const hp = hitHandle(q);
+        o.style.cursor = hp ? (hp.cx === hp.cy ? "nwse-resize" : "nesw-resize") : hit(q) ? "move" : "text";
       }
     });
     o.addEventListener("pointerleave", () => { if (d.eraserPos) { d.eraserPos = null; redraw(p); } });
@@ -437,6 +490,10 @@
         if (drag.strokes.size) setStatus("消しゴムで消しました。「消しゴムを元に戻す」で1回分ずつ戻せます。");
         else setStatus("消しゴムの範囲に手書きの文字・線がありません。");
         updateChrome();
+      }
+      if (drag && drag.resize) {
+        setStatus("大きさを変えました。四隅のつまみ（文字は右下）をドラッグするとさらに調整できます。");
+        updateChrome(); redrawAll();
       }
       if (drag && drag.create) {
         const it = drag.it;   // 小さすぎる（ほぼクリックだけ）なら追加しない
