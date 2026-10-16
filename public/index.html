@@ -33,7 +33,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yomogi&family=Klee+One:wght@400;600&family=Zen+Kurenaido&family=Yusei+Magic&display=swap">
 <script src="vendor/pdfjs/pdf.min.js"></script>
 <script src="vendor/pdf-lib/pdf-lib.min.js"></script>
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 
@@ -134,6 +134,16 @@
     <p class="panel-lead">文字を検索して墨消し枠を自動追加、またはページ上をドラッグして枠を追加できます（枠クリックで削除）。スキャンPDF（文字なし）でも、ドラッグでの墨消しは使えます。</p>
 
     <div class="card toolbar">
+      <label class="btn-outline filebtn" id="rd-drop" style="cursor:pointer">
+        <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+        PDFを選ぶ
+        <input id="rd-file" type="file" accept="application/pdf">
+      </label>
+      <span id="rd-ptype" class="badge">—</span>
+      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。</p>
+    </div>
+
+    <div class="card toolbar">
       <div class="field" style="min-width:220px;flex:1 1 220px">
         <label for="rd-q">文字を検索して墨消し枠に追加</label>
         <input id="rd-q" class="text-input" type="text" placeholder="例: ＥＮＥＯＳ" disabled>
@@ -164,12 +174,6 @@
       <p class="status" id="rd-applyStatus" style="flex-basis:100%" aria-live="polite"></p>
     </div>
 
-    <label class="dropzone" id="rd-drop">
-      <svg class="icon-lg" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
-      <p>ここをクリックして書類を選ぶ<span class="dropzone-sub">またはファイルをドラッグ＆ドロップ（PDF）</span></p>
-      <input id="rd-file" type="file" accept="application/pdf">
-    </label>
-    <div><span id="rd-ptype" class="badge">—</span></div>
     <p class="status" id="rd-status">PDFを読み込むと、全ページがここに縦に並びます。</p>
     <div class="pages-col" id="rd-pages"></div>
   </section>
@@ -179,6 +183,16 @@
     <h2 class="panel-title">手書き風文字追加</h2>
     <p class="panel-lead">文字はページをクリック、四角い囲み・マルはページ上をドラッグして、手書き風に入れられます。置いたものは線や文字をドラッグして移動、四隅のつまみ（文字は右下のつまみ）をドラッグして大きさを変更、文字の大きさは「大きさ（pt）」でも指定できます（Deleteで削除）。消しゴムでなぞると、手書きの文字・線を部分的に消せます。</p>
 
+    <div class="card toolbar">
+      <label class="btn-outline filebtn" id="hw-drop" style="cursor:pointer">
+        <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+        PDFを選ぶ
+        <input id="hw-file" type="file" accept="application/pdf">
+      </label>
+      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。</p>
+    </div>
+
+    <div class="sticky-menu" id="hw-menu">
     <div class="card toolbar">
       <div class="field">
         <label for="hw-kind">配置するもの</label>
@@ -213,6 +227,7 @@
       <div class="field" data-for-text><label for="hw-angle">傾き</label><input id="hw-angle" type="range" min="-30" max="30" value="-2"></div>
     </div>
     <div class="card toolbar">
+      <label class="menu-pin-toggle"><input type="checkbox" id="hw-pin" checked> メニューを固定</label>
       <span class="badge" id="hw-count">文字: 0</span>
       <button id="hw-erUndo" type="button" class="btn-outline" disabled>消しゴムを元に戻す</button>
       <button id="hw-delete" type="button" class="btn-outline" disabled>選択中の要素を削除</button>
@@ -220,12 +235,8 @@
       <button id="hw-save" type="button" class="btn-primary" disabled>PDFを保存</button>
       <p class="status" id="hw-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
     </div>
+    </div>
 
-    <label class="dropzone" id="hw-drop">
-      <svg class="icon-lg" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
-      <p>ここをクリックして書類を選ぶ<span class="dropzone-sub">またはファイルをドラッグ＆ドロップ（PDF）</span></p>
-      <input id="hw-file" type="file" accept="application/pdf">
-    </label>
     <p class="status" id="hw-status">PDFを読み込むと、全ページがここに縦に並びます。</p>
     <div class="pages-col" id="hw-pages"></div>
   </section>
@@ -235,11 +246,15 @@
     <h2 class="panel-title">結合・分割・回転</h2>
     <p class="panel-lead">複数のPDFのページをサムネイルで並べ替え・削除・回転して1つに結合できます。左上の○でページを選ぶと、選んだページだけの抽出・回転もできます。</p>
 
-    <label class="dropzone" id="pg-drop">
-      <svg class="icon-lg" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
-      <p>ここをクリックして書類を選ぶ<span class="dropzone-sub">またはファイルをドラッグ＆ドロップ（複数のPDFを同時に追加可・あとから追加も可）</span></p>
-      <input id="pg-file" type="file" accept="application/pdf" multiple>
-    </label>
+    <div class="card toolbar">
+      <label class="btn-outline filebtn" id="pg-drop" style="cursor:pointer">
+        <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+        PDFを選ぶ
+        <input id="pg-file" type="file" accept="application/pdf" multiple>
+      </label>
+      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。複数のPDFを同時に追加でき、あとから追加もできます。</p>
+    </div>
+
 
     <div class="card toolbar" id="pg-ops" hidden>
       <span class="badge" id="pg-count">0ページ</span>
@@ -513,7 +528,7 @@
 
 <script src="common.js?v=3"></script>
 <script src="redact.js?v=4"></script>
-<script src="hand.js?v=9"></script>
+<script src="hand.js?v=10"></script>
 <script src="pages.js?v=4"></script>
 <script src="meta.js?v=3"></script>
 <script src="shrink.js?v=4"></script>

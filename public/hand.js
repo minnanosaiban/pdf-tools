@@ -578,5 +578,12 @@
     } finally { updateChrome(); }
   };
 
+  // ---- メニューの固定（既定は固定。選択はこのブラウザに保存） ----
+  const pin = $("hw-pin"), menu = $("hw-menu"), PIN_KEY = "pdf-tools-hand-pin-v1";
+  try { if (localStorage.getItem(PIN_KEY) === "0") pin.checked = false; } catch { /* noop */ }
+  const syncPin = () => menu.classList.toggle("unpinned", !pin.checked);
+  pin.addEventListener("change", () => { syncPin(); try { localStorage.setItem(PIN_KEY, pin.checked ? "1" : "0"); } catch { /* noop */ } });
+  syncPin();
+
   updateChrome();
 })();

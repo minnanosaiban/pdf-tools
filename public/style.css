@@ -240,3 +240,18 @@ input[type="color"] { width: 40px; height: 40px; padding: 2px; border: 1px solid
 .pn-pager { margin: 4px 0 16px; display: flex; flex-direction: column; gap: 10px; }
 .pn-pager-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .pn-page { width: 100%; max-width: 520px; height: auto; border: 1px solid var(--tx-border); box-shadow: var(--tx-shadow-sm); background: #fff; }
+
+/* 手書き風文字追加：設定メニューを画面上部に固定（sidenoteの編集メニュー固定と同様）。
+   背が高くなりすぎる狭い画面では、メニュー内をスクロールできるようにする。「メニューを固定」を外すと通常の配置に戻る */
+.sticky-menu { position: sticky; top: 8px; z-index: 19; display: flex; flex-direction: column; gap: 16px; max-height: calc(100vh - 16px); overflow-y: auto; }
+.sticky-menu.unpinned { position: static; max-height: none; overflow: visible; }
+.menu-pin-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; margin-right: 8px; }
+/* 固定中は、ページを広く見られるよう詰めて表示する（固定を外すと通常の大きさに戻る） */
+.sticky-menu:not(.unpinned) { gap: 6px; }
+.sticky-menu:not(.unpinned) .card { padding: 8px 12px; gap: 6px 12px; }
+.sticky-menu:not(.unpinned) .field { gap: 2px; }
+.sticky-menu:not(.unpinned) .text-input, .sticky-menu:not(.unpinned) select.text-input { height: 32px; font-size: 13px; }
+.sticky-menu:not(.unpinned) textarea.text-input { height: 32px; padding: 5px 10px; }
+.sticky-menu:not(.unpinned) .btn-outline, .sticky-menu:not(.unpinned) .btn-primary { height: 32px; padding: 0 12px; font-size: 13px; }
+.sticky-menu:not(.unpinned) input[type="range"] { width: 100px; }
+.sticky-menu .status:empty { display: none; }
