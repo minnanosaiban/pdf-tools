@@ -440,7 +440,8 @@
           </div>
           <div class="field-group"><div class="field-label"><label for="pn-size">大きさ（pt）</label></div><input id="pn-size" type="number" class="text-input" min="6" max="72" step="1" value="12" style="width:90px"></div>
           <div class="field-group"><div class="field-label"><label for="pn-color">色</label></div><input id="pn-color" type="color" value="#222222"></div>
-          <div class="field-group"><div class="field-label"><label for="pn-jitter">手書きのゆらぎ</label></div><input id="pn-jitter" type="range" min="0" max="100" value="40"></div>
+          <div class="field-group"><div class="field-label"><label for="pn-jitter">手書きのゆらぎ</label></div><input id="pn-jitter" type="range" min="0" max="100" value="40"><p class="field-hint-plain" id="pn-jitterNote">※手書き風の書体を選ぶと使えます（「手書き風文字追加」と同じゆらぎ）</p></div>
+          <div class="field-group"><div class="field-label"><label for="pn-angle">傾き（度）</label></div><input id="pn-angle" type="range" min="-15" max="15" step="1" value="0"></div>
         </div>
         <div>
           <div class="field-group"><div class="field-label"><label for="pn-margin">端からの余白（mm）</label></div><input id="pn-margin" type="number" class="text-input" min="0" max="100" step="1" value="10" style="width:90px"></div>
@@ -516,7 +517,7 @@
 <script src="pages.js?v=4"></script>
 <script src="meta.js?v=3"></script>
 <script src="shrink.js?v=4"></script>
-<script src="pageno.js?v=6"></script>
+<script src="pageno.js?v=7"></script>
 <script src="app.js?v=3"></script>
 </body>
 </html>

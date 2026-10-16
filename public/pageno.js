@@ -17,12 +17,12 @@
   let pdfBytes = null, baseName = "pdf", pageCount = 1, pageW = 595, pageH = 842, pos = POS[5];
 
   const el = {};
-  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "margin", "from", "first", "mode", "chapters", "modeBox", "fromBox", "skipNote", "previewBox", "firstBox", "firstLabel", "chaptersBox", "pager", "prev", "next", "pageInfo", "filled", "pageText", "pageCanvas", "pos", "preview", "save", "saveStatus"]) el[k] = $("pn-" + k);
+  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "angle", "jitterNote", "margin", "from", "first", "mode", "chapters", "modeBox", "fromBox", "skipNote", "previewBox", "firstBox", "firstLabel", "chaptersBox", "pager", "prev", "next", "pageInfo", "filled", "pageText", "pageCanvas", "pos", "preview", "save", "saveStatus"]) el[k] = $("pn-" + k);
   const setStatus = (m, err) => { el.status.textContent = m || ""; el.status.classList.toggle("is-error", !!err); };
   const setSaveStatus = (m, err) => { el.saveStatus.textContent = m || ""; el.saveStatus.classList.toggle("is-error-text", !!err); };
   const num = (e, lo, hi, def) => Math.min(hi, Math.max(lo, Math.round(+e.value) || def));
   const opts = () => ({
-    format: el.format.value, font: el.font.value, size: num(el.size, 6, 72, 12), color: el.color.value, jitter: +el.jitter.value,
+    format: el.format.value, font: el.font.value, size: num(el.size, 6, 72, 12), color: el.color.value, jitter: +el.jitter.value, angle: +el.angle.value || 0,
     margin: Math.min(100, Math.max(0, +el.margin.value || 0)) * MM, from: el.format.value === "custom" ? 1 : num(el.from, 1, pageCount, 1), first: Math.max(0, Math.round(+el.first.value) || 0),
     texts: pageTexts.slice(),
     mode: el.mode.value, chapters: parseList(el.chapters.value).map(Number).filter((n) => Number.isInteger(n) && n >= 1),
@@ -55,13 +55,18 @@
     ctx.font = fontStr(o, px);
     const lines = text.split("\n").map((ln) => { const chars = Array.from(ln); return { chars, adv: chars.map((ch) => ctx.measureText(ch).width) }; });
     const lw = lines.map((l) => l.adv.reduce((a, b) => a + b, 0) / k), lh = o.size * 1.2;
-    const tw = Math.max(...lw, 0), th = lh * lines.length;
+    const tw0 = Math.max(...lw, 0), th0 = lh * lines.length;
+    // 傾けたあとの外接サイズ。余白（置く位置の計算）はこの大きさで測る
+    const ang = o.angle * Math.PI / 180, cs = Math.abs(Math.cos(ang)), sn = Math.abs(Math.sin(ang));
+    const tw = tw0 * cs + th0 * sn, th = tw0 * sn + th0 * cs;
     c.width = Math.ceil((tw + pad * 2) * k * 1.04); c.height = Math.ceil((th + pad * 2) * k);
     ctx.font = fontStr(o, px); ctx.fillStyle = o.color; ctx.textBaseline = "middle";
     const hand = o.font !== "std", j = hand ? o.jitter / 100 : 0, r = rng(seed);
+    ctx.translate(c.width / 2, c.height / 2); ctx.rotate(ang);
     lines.forEach((l, li) => {
-      let x = (pad + (tw - lw[li]) * pos[1]) * k;   // 複数行は、置く位置に合わせて左／中央／右にそろえる
-      const cy = (pad + lh * (li + 0.5)) * k;
+      // 行頭と行の高さを少しずらす（「手書き風文字追加」と同じ）。複数行は置く位置に合わせて左／中央／右にそろえる
+      let x = (-tw0 / 2 + (tw0 - lw[li]) * pos[1] + (r() - 0.5) * o.size * 0.3 * j) * k;
+      const cy = (-th0 / 2 + lh * (li + 0.5) + (r() - 0.5) * o.size * 0.12 * j) * k;
       l.chars.forEach((ch, i) => {
         const dy = (r() - 0.5) * px * 0.2 * j, rot = (r() - 0.5) * 0.2 * j, sc = 1 + (r() - 0.5) * 0.14 * j;
         ctx.save();
@@ -109,11 +114,11 @@
     const lab = renderLabel(text, o, k * 3, 1), { ox, oy } = place(pageW, pageH, lab, o);
     ctx.drawImage(lab.canvas, ox * k, c.height - (oy + lab.h) * k, lab.w * k, lab.h * k);
   }
-  for (const k of ["format", "font", "size", "color", "jitter", "margin", "from", "first", "mode", "chapters"]) {
+  for (const k of ["format", "font", "size", "color", "jitter", "angle", "margin", "from", "first", "mode", "chapters"]) {
     el[k].addEventListener("input", refresh);
     el[k].addEventListener("change", refresh);
   }
-  el.font.addEventListener("change", () => { el.jitter.disabled = el.font.value === "std"; });
+  el.font.addEventListener("change", () => { el.jitter.disabled = el.font.value === "std"; el.jitterNote.hidden = el.font.value !== "std"; });
   el.jitter.disabled = true;
   function syncMode() {
     const m = el.mode.value, custom = el.format.value === "custom";
