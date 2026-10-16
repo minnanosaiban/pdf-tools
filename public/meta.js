@@ -49,6 +49,8 @@
 
   saveBtn.addEventListener("click", async () => {
     if (!pdfDoc) return;
+    const target = await pickSaveTarget(`${baseName}_meta.pdf`);
+    if (target === false) { setSaveStatus("保存をキャンセルしました。"); return; }
     saveBtn.disabled = true; setSaveStatus("保存中…");
     try {
       pdfDoc.setTitle(fTitle.value.trim()); pdfDoc.setAuthor(fAuthor.value.trim());
@@ -58,8 +60,8 @@
       if (fKeywords.value.trim() !== orig.keywords.trim()) pdfDoc.setKeywords(fKeywords.value.split(/[\s,、]+/).filter(Boolean));
       if (resetCreation.checked) pdfDoc.setCreationDate(new Date());
       pdfDoc.setModificationDate(new Date());
-      triggerDownload(new Blob([await pdfDoc.save()], { type: "application/pdf" }), `${baseName}_meta.pdf`);
-      setSaveStatus("保存しました（ダウンロードを開始しました）");
+      await saveBlob(new Blob([await pdfDoc.save()], { type: "application/pdf" }), `${baseName}_meta.pdf`, target);
+      setSaveStatus(target ? "保存しました" : "保存しました（ダウンロードを開始しました）");
     } catch (e) { setSaveStatus("保存に失敗しました: " + (e && e.message || e), true); }
     finally { saveBtn.disabled = false; }
   });
@@ -122,13 +124,19 @@
       row.titleInput.replaceWith(err); row.authorInput.remove(); row.saveBtn.remove();
     }
   }
-  async function saveRow(row) {
+  // target が undefined のときは1件だけの保存なので、ここで保存先を選ぶ。まとめて保存では、選んだフォルダ（またはnull）が渡る
+  async function saveRow(row, target) {
     if (!row.doc) return;
+    const fname = `${row.file.name.replace(/\.pdf$/i, "") || "pdf"}_meta.pdf`;
+    if (target === undefined) {
+      target = await pickSaveTarget(fname);
+      if (target === false) return;
+    }
     row.saveBtn.disabled = true; row.statusEl.textContent = "保存中…"; row.statusEl.classList.remove("is-error-text");
     try {
       row.doc.setTitle(row.titleInput.value.trim()); row.doc.setAuthor(row.authorInput.value.trim());
       row.doc.setModificationDate(new Date());
-      triggerDownload(new Blob([await row.doc.save()], { type: "application/pdf" }), `${row.file.name.replace(/\.pdf$/i, "") || "pdf"}_meta.pdf`);
+      await saveBlob(new Blob([await row.doc.save()], { type: "application/pdf" }), fname, target);
       row.statusEl.textContent = "保存しました";
     } catch { row.statusEl.textContent = "保存に失敗しました"; row.statusEl.classList.add("is-error-text"); }
     finally { row.saveBtn.disabled = false; }
@@ -139,10 +147,12 @@
   folderSaveAll.addEventListener("click", async () => {
     const targets = folderRows.filter((r) => r.doc);
     if (!targets.length) return;
+    const dir = await pickSaveFolder();   // 保存先フォルダを1回だけ選ぶ（未対応ならnull＝通常のダウンロード）
+    if (dir === false) return;
     folderSaveAll.disabled = true;
     for (let i = 0; i < targets.length; i++) {
       folderSaveAllStatus.textContent = `まとめて保存中…（${i + 1}/${targets.length}）`;
-      await saveRow(targets[i]);
+      await saveRow(targets[i], dir);
       await new Promise((r) => setTimeout(r, 250));
     }
     folderSaveAllStatus.textContent = `${targets.length}件を保存しました`;

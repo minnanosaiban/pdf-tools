@@ -61,21 +61,28 @@
 
   el.save.addEventListener("click", async () => {
     if (!pdfBytes) return;
+    const target = await pickSaveTarget(`${baseName}_${getScale()}pct.pdf`);
+    if (target === false) { setSaveStatus("保存をキャンセルしました。"); return; }
     el.save.disabled = true; setSaveStatus("変換中…");
     try {
       const src = await PDFDocument.load(pdfBytes, { updateMetadata: false });
       const out = await PDFDocument.create();
       const pages = src.getPages();
       // 表示領域(CropBox)をそのまま埋め込む。原点が(0,0)でないPDFでもずれない
-      const embedded = await out.embedPages(pages, pages.map((pg) => {
-        const b = pg.getCropBox(); return { left: b.x, bottom: b.y, right: b.x + b.width, top: b.y + b.height };
-      }));
+      // 中身（Contents）が無い白紙ページは埋め込めないので、そのページは白紙のまま出力する
+      const embedded = [];
+      for (const pg of pages) {
+        const b = pg.getCropBox();
+        if (!pg.node.Contents()) { embedded.push(null); continue; }   // 埋め込みは保存時に失敗するので、先に見分ける
+        embedded.push(await out.embedPage(pg, { left: b.x, bottom: b.y, right: b.x + b.width, top: b.y + b.height }));
+      }
       const k = getScale() / 100;
       pages.forEach((pg, i) => {
         const { width: cw, height: ch } = pg.getCropBox();
         const R = ((pg.getRotation().angle % 360) + 360) % 360;
         const vw = R % 180 ? ch : cw, vh = R % 180 ? cw : ch;   // 見た目（回転込み）の寸法
         const np = out.addPage([vw, vh]);
+        if (!embedded[i]) return;
         const sw = vw * k, sh = vh * k;
         const ox = (vw - sw) * pos[1], oy = (vh - sh) * (1 - pos[2]);   // PDFは左下原点なので縦は反転
         // 回転ページ(/Rotate)は時計回りに表示される。埋め込んだ内容も時計回りにR度回し、回した後の左下が(ox,oy)になる基準点に置く
@@ -84,8 +91,8 @@
         setSaveStatus(`変換中… ${i + 1}/${pages.length}ページ`);
       });
       const t = src.getTitle(); if (t) out.setTitle(t);
-      triggerDownload(new Blob([await out.save()], { type: "application/pdf" }), `${baseName}_${getScale()}pct.pdf`);
-      setSaveStatus(`保存しました（${pages.length}ページ、${getScale()}％、${pos[0]}）。ダウンロードを開始しました。`);
+      await saveBlob(new Blob([await out.save()], { type: "application/pdf" }), `${baseName}_${getScale()}pct.pdf`, target);
+      setSaveStatus(`保存しました（${pages.length}ページ、${getScale()}％、${pos[0]}）。${target ? "" : "ダウンロードを開始しました。"}`);
     } catch (e) {
       setSaveStatus("保存に失敗しました: " + (e && e.message || e), true);
     } finally { el.save.disabled = false; }

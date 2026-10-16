@@ -488,6 +488,8 @@
     if (!pdf) return;
     const out = items.filter((i) => !isBlankText(i));   // 空の文字は書き出さない
     if (!out.length) return;
+    const target = await pickSaveTarget(`${baseName}_hand.pdf`);
+    if (target === false) { setSaveStatus("保存をキャンセルしました。"); return; }
     el.save.disabled = true; setSaveStatus("PDFに書き込み中…");
     try {
       await Promise.all(out.filter((it) => !isShape(it)).map((it) => document.fonts.load(fontStr(it, 1).replace(/^[\d.]+px/, "24px"), it.text)));
@@ -512,8 +514,8 @@
         target.drawImage(img, { x: pos[0], y: pos[1], width: vis.width, height: vis.height, rotate: degrees(R) });
         setSaveStatus(`書き込み中… ${p}ページ`);
       }
-      triggerDownload(new Blob([await doc.save()], { type: "application/pdf" }), `${baseName}_hand.pdf`);
-      setSaveStatus(`保存しました（${out.length}件を追加、ダウンロードを開始しました）。書き込みは画像として重ねているため、PDF上では選択・検索できません。`);
+      await saveBlob(new Blob([await doc.save()], { type: "application/pdf" }), `${baseName}_hand.pdf`, target);
+      setSaveStatus(`保存しました（${out.length}件を追加${target ? "" : "、ダウンロードを開始しました"}）。書き込みは画像として重ねているため、PDF上では選択・検索できません。`);
     } catch (e) {
       setSaveStatus("保存に失敗しました: " + (e && e.message || e), true);
     } finally { updateChrome(); }

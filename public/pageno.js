@@ -117,6 +117,8 @@
 
   el.save.addEventListener("click", async () => {
     if (!pdfBytes) return;
+    const target = await pickSaveTarget(`${baseName}_pageno.pdf`);
+    if (target === false) { setSaveStatus("保存をキャンセルしました。"); return; }
     el.save.disabled = true; setSaveStatus("書き込み中…");
     try {
       const o = opts(), doc = await PDFDocument.load(pdfBytes, { updateMetadata: false }), pages = doc.getPages();
@@ -135,8 +137,8 @@
         pg.drawImage(img, { x: base[0] + off[0], y: base[1] + off[1], width: lab.w, height: lab.h, rotate: degrees(R) });
         setSaveStatus(`書き込み中… ${i}/${pages.length}ページ`);
       }
-      triggerDownload(new Blob([await doc.save()], { type: "application/pdf" }), `${baseName}_pageno.pdf`);
-      setSaveStatus(`保存しました（${pages.length - o.from + 1}ページに番号を入れました、${pos[0]}）。ダウンロードを開始しました。`);
+      await saveBlob(new Blob([await doc.save()], { type: "application/pdf" }), `${baseName}_pageno.pdf`, target);
+      setSaveStatus(`保存しました（${pages.length - o.from + 1}ページに番号を入れました、${pos[0]}）。${target ? "" : "ダウンロードを開始しました。"}`);
     } catch (e) {
       setSaveStatus("保存に失敗しました: " + (e && e.message || e), true);
     } finally { el.save.disabled = false; }

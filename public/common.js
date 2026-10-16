@@ -16,6 +16,34 @@ function triggerDownload(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
+// 保存先を選べるブラウザ（Chrome・Edgeなど）では「名前を付けて保存」ダイアログを出す。
+// ダイアログはクリック直後でないと開けないので、重い処理より前（最初のawaitとして）に呼ぶこと。
+// 戻り値：ファイルのハンドル（保存先を選んだ）／ null（未対応のブラウザ。通常のダウンロードにする）／ false（キャンセル）
+async function pickSaveTarget(filename) {
+  if (typeof window.showSaveFilePicker !== "function") return null;
+  try {
+    return await window.showSaveFilePicker({ suggestedName: filename, types: [{ description: "PDF", accept: { "application/pdf": [".pdf"] } }] });
+  } catch (e) {
+    return e && e.name === "AbortError" ? false : null;
+  }
+}
+// 複数ファイルを同じフォルダへ書き出すとき用。戻り値は pickSaveTarget と同じ（フォルダのハンドル）
+async function pickSaveFolder() {
+  if (typeof window.showDirectoryPicker !== "function") return null;
+  try {
+    return await window.showDirectoryPicker({ mode: "readwrite" });
+  } catch (e) {
+    return e && e.name === "AbortError" ? false : null;
+  }
+}
+// target が無ければ通常のダウンロード。ファイル／フォルダのハンドルなら、そこへ書き込む
+async function saveBlob(blob, filename, target) {
+  if (!target) { triggerDownload(blob, filename); return; }
+  const fh = target.kind === "directory" ? await target.getFileHandle(filename, { create: true }) : target;
+  const w = await fh.createWritable();
+  try { await w.write(blob); } finally { await w.close(); }
+}
+
 // クリック選択に加え、ドラッグ＆ドロップでもファイルを受け取る。
 function wireDrop(el, onFiles, multiple) {
   el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("dragover"); });

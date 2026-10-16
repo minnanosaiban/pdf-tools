@@ -201,10 +201,12 @@
   mergeBtn.onclick = async () => {
     const ids = cards().map((c) => c.dataset.pageId);
     if (!ids.length) return;
+    const fname = normName($("pg-name").value, "merged.pdf"), target = await pickSaveTarget(fname);
+    if (target === false) return;
     busy(true); setStatus2("結合中…");
     try {
-      triggerDownload(await build(ids), normName($("pg-name").value, "merged.pdf"));
-      setStatus2(`結合しました（${ids.length}ページ、ダウンロードを開始しました）`);
+      await saveBlob(await build(ids), fname, target);
+      setStatus2(`結合しました（${ids.length}ページ${target ? "" : "、ダウンロードを開始しました"}）`);
     } catch (e) { setStatus2("結合に失敗しました: " + errText(e), true); }
     finally { busy(false); }
   };
@@ -212,9 +214,11 @@
   extractBtn.onclick = async () => {
     const ids = selectedCards().map((c) => c.dataset.pageId);
     if (!ids.length) return;
+    const fname = normName($("pg-name").value.replace(/\.pdf$/i, "") + "_extract", "extract.pdf"), target = await pickSaveTarget(fname);
+    if (target === false) return;
     busy(true); setStatus2("抽出中…");
     try {
-      triggerDownload(await build(ids), normName($("pg-name").value.replace(/\.pdf$/i, "") + "_extract", "extract.pdf"));
+      await saveBlob(await build(ids), fname, target);
       setStatus2(`選択した${ids.length}ページを保存しました`);
     } catch (e) { setStatus2("抽出に失敗しました: " + errText(e), true); }
     finally { busy(false); }
@@ -227,12 +231,14 @@
     const base = normName($("pg-name").value, "split.pdf").replace(/\.pdf$/i, "");
     const parts = [];
     for (let i = 0; i < ids.length; i += n) parts.push(ids.slice(i, i + n));
+    const dir = await pickSaveFolder();   // 保存先フォルダを1回だけ選ぶ（未対応ならnull＝通常のダウンロード）
+    if (dir === false) return;
     busy(true);
     try {
       for (let i = 0; i < parts.length; i++) {
         setStatus2(`分割して保存中…（${i + 1}/${parts.length}）`);
-        triggerDownload(await build(parts[i]), `${base}_${String(i + 1).padStart(String(parts.length).length, "0")}.pdf`);
-        await new Promise((r) => setTimeout(r, 350));   // 連続ダウンロードがブロックされにくいよう間隔を空ける
+        await saveBlob(await build(parts[i]), `${base}_${String(i + 1).padStart(String(parts.length).length, "0")}.pdf`, dir);
+        if (!dir) await new Promise((r) => setTimeout(r, 350));   // 連続ダウンロードがブロックされにくいよう間隔を空ける
       }
       setStatus2(`${ids.length}ページを${n}ページごとに${parts.length}ファイルへ分割して保存しました`);
     } catch (e) { setStatus2("分割に失敗しました: " + errText(e), true); }

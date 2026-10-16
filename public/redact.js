@@ -333,6 +333,10 @@
     }
   };
 
-  // ダウンロードはユーザー操作に同期して即開始する（書き出しは適用時に済ませてある）
-  dlBtn.onclick = () => { if (outputBlob) triggerDownload(outputBlob, "redacted.pdf"); };
+  // ダウンロードはユーザー操作に同期して即開始する（書き出しは適用時に済ませてある）。保存先を選べるブラウザではダイアログを先に出す
+  dlBtn.onclick = async () => {
+    if (!outputBlob) return;
+    const blob = outputBlob, target = await pickSaveTarget("redacted.pdf");
+    if (target !== false) await saveBlob(blob, "redacted.pdf", target).catch(() => {});
+  };
 })();
