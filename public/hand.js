@@ -57,6 +57,49 @@
     return (t) => amp * (0.7 * Math.sin(f1 * t + p1) + 0.3 * Math.sin(f2 * t + p2));
   }
 
+  // 波かっこ「{」「}」と矢印の線（折れ線のリスト）。ドラッグした範囲(x,y,w,h)に収める。
+  // 矢印は範囲の対角線で、fx/fy が真なら始点が右／下（＝ドラッグの向き）。
+  function strokePaths(it, W, H, s) {
+    const j = it.jitter / 100, r = rng(it.seed);
+    const x = it.x * W, y = it.y * H, w = it.w * W, h = it.h * H;
+    const len0 = Math.hypot(w, h);
+    const amp = Math.max(0.3, len0 * 0.012 * j + it.lw * s * 0.5 * j);
+    const seg = (n) => Math.max(4, Math.round(n / 6));
+    const line = (a, b) => { const n = seg(Math.hypot(b[0] - a[0], b[1] - a[1])); const o = []; for (let i = 0; i <= n; i++) o.push([a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n]); return o; };
+    const quad = (a, c, b) => {
+      const n = seg(Math.hypot(c[0] - a[0], c[1] - a[1]) + Math.hypot(b[0] - c[0], b[1] - c[1])); const o = [];
+      for (let i = 0; i <= n; i++) { const t = i / n, u = 1 - t; o.push([u * u * a[0] + 2 * u * t * c[0] + t * t * b[0], u * u * a[1] + 2 * u * t * c[1] + t * t * b[1]]); }
+      return o;
+    };
+    // 点列全体に、ゆるやかなゆらぎ（縦横それぞれ別の位相）を足す
+    const shake = (pts) => {
+      const wx = wobbler(r, amp), wy = wobbler(r, amp), n = pts.length - 1 || 1;
+      return pts.map(([px, py], i) => [px + wx(i / n * 3), py + wy(i / n * 3)]);
+    };
+    if (it.type === "arrow") {
+      const sx = it.fx ? x + w : x, sy = it.fy ? y + h : y, ex = it.fx ? x : x + w, ey = it.fy ? y : y + h;
+      const L = Math.hypot(ex - sx, ey - sy) || 1, ang = Math.atan2(ey - sy, ex - sx);
+      const hl = Math.min(L * 0.5, Math.max(10 * s, it.lw * s * 4 + L * 0.08));   // 矢じりの長さ
+      const head = [-1, 1].map((d) => {
+        const a = ang + Math.PI + d * (0.45 + (r() - 0.5) * 0.12 * j), k = hl * (1 + (r() - 0.5) * 0.2 * j);
+        return [ex + Math.cos(a) * k, ey + Math.sin(a) * k];
+      });
+      return [shake(line([sx, sy], [ex, ey])), shake([head[0], [ex, ey], head[1]].flatMap((p, i, a) => (i ? line(a[i - 1], p).slice(1) : [p])))];
+    }
+    // 波かっこ。「{」は右端から出て左へ尖る、「}」はその左右反転
+    const xr = it.type === "braceL" ? x + w : x, xl = it.type === "braceL" ? x : x + w, xm = x + w / 2;
+    const ym = y + h / 2, k = Math.min(w / 2, h / 4);
+    const pts = [
+      ...quad([xr, y], [xm, y], [xm, y + k]),
+      ...line([xm, y + k], [xm, ym - k]).slice(1),
+      ...quad([xm, ym - k], [xm, ym], [xl, ym]).slice(1),
+      ...quad([xl, ym], [xm, ym], [xm, ym + k]).slice(1),
+      ...line([xm, ym + k], [xm, y + h - k]).slice(1),
+      ...quad([xm, y + h - k], [xm, y + h], [xr, y + h]).slice(1),
+    ];
+    return [shake(pts)];
+  }
+
   function shapePath(it, W, H, s) {
     const j = it.jitter / 100, r = rng(it.seed);
     const x = it.x * W, y = it.y * H, w = it.w * W, h = it.h * H;
@@ -93,15 +136,17 @@
   }
 
   function drawShape(ctx, it, W, H, s) {
-    const pts = shapePath(it, W, H, s);
+    const paths = isStroke(it) ? strokePaths(it, W, H, s) : [shapePath(it, W, H, s)];
     ctx.save();
     ctx.strokeStyle = it.color; ctx.lineCap = "round"; ctx.lineJoin = "round";
     // ペンを2度なぞったような、わずかに太さの違う線を重ねる
-    for (const [wm, al] of [[1, 0.95], [0.55, 0.5]]) {
-      ctx.lineWidth = it.lw * s * wm; ctx.globalAlpha = al;
-      ctx.beginPath();
-      pts.forEach(([px, py], i) => (i ? ctx.lineTo(px + (wm < 1 ? 0.6 * s : 0), py) : ctx.moveTo(px + (wm < 1 ? 0.6 * s : 0), py)));
-      ctx.stroke();
+    for (const pts of paths) {
+      for (const [wm, al] of [[1, 0.95], [0.55, 0.5]]) {
+        ctx.lineWidth = it.lw * s * wm; ctx.globalAlpha = al;
+        ctx.beginPath();
+        pts.forEach(([px, py], i) => (i ? ctx.lineTo(px + (wm < 1 ? 0.6 * s : 0), py) : ctx.moveTo(px + (wm < 1 ? 0.6 * s : 0), py)));
+        ctx.stroke();
+      }
     }
     ctx.restore();
     return { w: it.w * W, h: it.h * H };
@@ -136,7 +181,7 @@
   }
 
   function drawRaw(ctx, it, W, H, s) {
-    if (it.type === "rect" || it.type === "ellipse") return drawShape(ctx, it, W, H, s);
+    if (isShape(it)) return drawShape(ctx, it, W, H, s);
     const m = measure(ctx, it, s);
     const j = it.jitter / 100, r = rng(it.seed);
     ctx.save();
@@ -199,7 +244,9 @@
 
   // ---- 選択・コントロール同期 ----
   const byId = (id) => items.find((i) => i.id === id);
-  const isShape = (it) => it.type === "rect" || it.type === "ellipse";
+  const isStroke = (it) => it.type === "braceL" || it.type === "braceR" || it.type === "arrow";   // 線だけの要素（{ } 矢印）
+  const isShape = (it) => it.type === "rect" || it.type === "ellipse" || isStroke(it);
+  const KIND_LABEL = { rect: "四角", ellipse: "マル", braceL: "「{」", braceR: "「}」", arrow: "矢印" };
   let batchSeq = 0;
   const eraseHistory = [];   // { it, stroke }（消しゴムを1回なぞるごとに要素ごとの軌跡を積む）
   el.erUndo.onclick = () => {
@@ -248,7 +295,7 @@
   // 「配置するもの」に応じて、関係する設定だけを表示する
   function syncKind() {
     const k = el.kind.value;
-    const on = { text: k === "text", shape: k === "rect" || k === "ellipse", eraser: k === "eraser", draw: k !== "eraser" };
+    const on = { text: k === "text", shape: k !== "text" && k !== "eraser", eraser: k === "eraser", draw: k !== "eraser" };
     for (const g of Object.keys(on)) {
       document.querySelectorAll(`#panel-hand [data-for-${g}]`).forEach((n) => { n.hidden = !on[g]; });
     }
@@ -282,6 +329,11 @@
       for (let i = items.length - 1; i >= 0; i--) {
         const it = items[i];
         if (it.page !== p) continue;
+        if (isStroke(it)) {   // { } 矢印は、線の点列からの距離で当たり判定
+          const hs = strokePaths(it, W, H, s);
+          if (hs.some((pts) => pts.some(([px, py]) => Math.hypot(px - q.x * W, py - q.y * H) < 10))) return it;
+          continue;
+        }
         if (isShape(it)) {   // 四角・マルは内側ではなく「線の近く」だけを当たり判定にする（中に文字を置けるように）
           const dx = q.x * W - it.x * W, dy = q.y * H - it.y * H, w = it.w * W, h = it.h * H, tol = 10;
           if (it.type === "rect") {
@@ -365,6 +417,7 @@
       }
       if (drag && drag.create) {
         const it = drag.it;
+        it.fx = q.x < drag.sx; it.fy = q.y < drag.sy;   // 矢印の向き（始点がどの角か）
         it.x = clamp01(Math.min(q.x, drag.sx)); it.y = clamp01(Math.min(q.y, drag.sy));
         it.w = Math.abs(clamp01(q.x) - drag.sx); it.h = Math.abs(clamp01(q.y) - drag.sy);
         redraw(p);
@@ -387,11 +440,12 @@
       }
       if (drag && drag.create) {
         const it = drag.it;   // 小さすぎる（ほぼクリックだけ）なら追加しない
-        if (it.w * o.width < 12 || it.h * o.height < 12) {
+        const tooSmall = isStroke(it) ? Math.hypot(it.w * o.width, it.h * o.height) < 12 : (it.w * o.width < 12 || it.h * o.height < 12);
+        if (tooSmall) {
           items = items.filter((i) => i !== it); selectedId = null;
-          setStatus("四角・マルは、ページ上をドラッグして大きさを決めてください。");
+          setStatus("四角・マル・{ }・矢印は、ページ上をドラッグして大きさを決めてください。");
         } else {
-          setStatus(`p.${p} に${it.type === "rect" ? "四角" : "マル"}を追加しました。線をドラッグで移動、Deleteで削除できます。`);
+          setStatus(`p.${p} に${KIND_LABEL[it.type]}を追加しました。線をドラッグで移動、Deleteで削除できます。`);
         }
         updateChrome(); redrawAll();
       }
