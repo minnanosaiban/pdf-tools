@@ -62,6 +62,7 @@
           <button type="button" class="theme-swatch" role="tab" data-tool="pages">結合・分割・回転</button>
           <button type="button" class="theme-swatch" role="tab" data-tool="meta">メタデータ編集削除</button>
           <button type="button" class="theme-swatch" role="tab" data-tool="shrink">縮小・配置</button>
+          <button type="button" class="theme-swatch" role="tab" data-tool="pageno">ページ番号</button>
         </div>
       </div>
     </div>
@@ -111,6 +112,11 @@
                 <div class="mock-thumb-page"><span class="mock-line"></span><span class="mock-line"></span><span class="mock-line" style="width:60%"></span></div>
                 <span class="mock-plus">→</span>
                 <div class="mock-thumb-page" style="position:relative"><div style="position:absolute;left:4px;top:4px;width:85%;height:85%;border:1px dashed #9aa0a6;border-radius:3px;background:#f6f7f8"></div></div>
+              </div>
+            </div>
+            <div class="mock-doc" data-mock="pageno" hidden>
+              <div class="mock-thumbs" style="padding-top:20px">
+                <div class="mock-thumb-page" style="position:relative"><span class="mock-line"></span><span class="mock-line"></span><span class="mock-line" style="width:60%"></span><span class="mock-hand" style="position:absolute;right:6px;bottom:3px;font-size:13px;transform:none">1ページ</span></div>
               </div>
             </div>
           </div>
@@ -389,12 +395,81 @@
       </div>
     </div>
   </section>
+
+  <!-- ============ ページ番号 ============ -->
+  <section class="tool-panel" id="panel-pageno" data-panel="pageno" hidden>
+    <h2 class="panel-title">ページ番号</h2>
+    <p class="panel-lead">各ページにページ番号を入れます。位置（右上・右下・左上など）と書式（「1」「1頁」「1ページ」「1 / 全体」など）を選べ、書体は標準のほか手書き風も選べます。番号は画像として重ねるため、PDF上では選択・検索できません。</p>
+
+    <div class="card toolbar">
+      <label class="btn-outline filebtn" id="pn-drop" style="cursor:pointer">
+        <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+        PDFを選ぶ
+        <input id="pn-file" type="file" accept="application/pdf">
+      </label>
+      <span class="badge" id="pn-filename" hidden></span>
+      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。</p>
+    </div>
+
+    <p class="status" id="pn-status">PDFを選ぶと、設定とイメージが表示されます。</p>
+
+    <div class="card" id="pn-area" hidden>
+      <div class="sh-layout">
+        <div>
+          <div class="field-group">
+            <div class="field-label"><label for="pn-format">書式</label></div>
+            <select id="pn-format" class="text-input">
+              <option value="n">1</option>
+              <option value="kan">1頁</option>
+              <option value="page">1ページ</option>
+              <option value="p">p.1</option>
+              <option value="dash">- 1 -</option>
+              <option value="slash">1 / 全ページ数</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <div class="field-label"><label for="pn-font">書体</label></div>
+            <select id="pn-font" class="text-input">
+              <option value="std">標準（ゴシック）</option>
+              <option value="Yomogi">手書き風：よもぎ（やわらかい）</option>
+              <option value="Klee One">手書き風：クレー（ペン字）</option>
+              <option value="Zen Kurenaido">手書き風：ZEN 紅道（筆ペン）</option>
+              <option value="Yusei Magic">手書き風：油性マジック</option>
+            </select>
+          </div>
+          <div class="field-group"><div class="field-label"><label for="pn-size">大きさ（pt）</label></div><input id="pn-size" type="number" class="text-input" min="6" max="72" step="1" value="12" style="width:90px"></div>
+          <div class="field-group"><div class="field-label"><label for="pn-color">色</label></div><input id="pn-color" type="color" value="#222222"></div>
+          <div class="field-group"><div class="field-label"><label for="pn-jitter">手書きのゆらぎ</label></div><input id="pn-jitter" type="range" min="0" max="100" value="40"></div>
+        </div>
+        <div>
+          <div class="field-group"><div class="field-label"><label for="pn-margin">端からの余白（mm）</label></div><input id="pn-margin" type="number" class="text-input" min="0" max="100" step="1" value="10" style="width:90px"></div>
+          <div class="field-group"><div class="field-label"><label for="pn-from">何ページ目から付けるか</label></div><input id="pn-from" type="number" class="text-input" min="1" step="1" value="1" style="width:90px"></div>
+          <div class="field-group"><div class="field-label"><label for="pn-first">最初の番号</label></div><input id="pn-first" type="number" class="text-input" min="0" step="1" value="1" style="width:90px"></div>
+          <p class="cap">※表紙を飛ばしたいときは「何ページ目から」を2にします。</p>
+        </div>
+        <div>
+          <div class="field-group">
+            <div class="field-label" id="pn-posLabel">置く位置</div>
+            <div class="sh-pos" role="radiogroup" aria-labelledby="pn-posLabel" id="pn-pos"></div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">イメージ（最初に付くページ）</div>
+            <canvas id="pn-preview" style="border:1px solid var(--tx-border);box-shadow:var(--tx-shadow-sm);background:#fff;max-width:100%" aria-label="ページ番号の位置のイメージ"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button type="button" class="btn-primary" id="pn-save">ページ番号を入れて保存</button>
+        <p class="status" id="pn-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
 </main>
 
 <footer class="site-info" id="disclaimer">
   <div class="card">
     <div class="shead">■ このツールについて</div>
-    <p class="cap">※PDFの墨消し・検索、手書き風文字追加、結合・分割・回転、メタデータ編集削除、縮小・配置をまとめたツールです。</p>
+    <p class="cap">※PDFの墨消し・検索、手書き風文字追加、結合・分割・回転、メタデータ編集削除、縮小・配置、ページ番号をまとめたツールです。</p>
     <p class="cap">※ご意見・ご要望は作成者までご連絡ください。</p>
     <a class="link" href="https://x.com/minnanosaiban" target="_blank" rel="noopener">@minnanosaiban</a>
   </div>
@@ -414,6 +489,7 @@
 <script src="pages.js?v=3"></script>
 <script src="meta.js?v=2"></script>
 <script src="shrink.js?v=1"></script>
-<script src="app.js?v=2"></script>
+<script src="pageno.js?v=1"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
