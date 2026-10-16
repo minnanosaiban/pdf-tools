@@ -17,13 +17,14 @@
   let pdfBytes = null, baseName = "pdf", pageCount = 1, pageW = 595, pageH = 842, pos = POS[5];
 
   const el = {};
-  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "margin", "from", "first", "mode", "chapters", "manual", "firstBox", "firstLabel", "chaptersBox", "manualBox", "pos", "preview", "save", "saveStatus"]) el[k] = $("pn-" + k);
+  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "margin", "from", "first", "mode", "chapters", "manual", "template", "templateBox", "firstBox", "firstLabel", "chaptersBox", "manualBox", "pos", "preview", "save", "saveStatus"]) el[k] = $("pn-" + k);
   const setStatus = (m, err) => { el.status.textContent = m || ""; el.status.classList.toggle("is-error", !!err); };
   const setSaveStatus = (m, err) => { el.saveStatus.textContent = m || ""; el.saveStatus.classList.toggle("is-error-text", !!err); };
   const num = (e, lo, hi, def) => Math.min(hi, Math.max(lo, Math.round(+e.value) || def));
   const opts = () => ({
     format: el.format.value, font: el.font.value, size: num(el.size, 6, 72, 12), color: el.color.value, jitter: +el.jitter.value,
     margin: Math.min(100, Math.max(0, +el.margin.value || 0)) * MM, from: num(el.from, 1, pageCount, 1), first: Math.max(0, Math.round(+el.first.value) || 0),
+    template: el.template.value,
     mode: el.mode.value, chapters: parseList(el.chapters.value).map(Number).filter((n) => Number.isInteger(n) && n >= 1), manual: parseList(el.manual.value),
   });
   const parseList = (s) => s.split(/[\n,、，]+/).map((x) => x.trim()).filter(Boolean);
@@ -84,7 +85,11 @@
     }
     return String(o.first + (i - o.from));
   }
-  const labelText = (o, i, total) => { const n = baseLabel(o, i); return n && FORMATS[o.format](n, baseLabel(o, total) || n); };
+  const labelText = (o, i, total) => {
+    const n = baseLabel(o, i), t = baseLabel(o, total) || n;
+    if (!n) return "";
+    return o.format === "custom" ? o.template.replace(/\{n\}/g, n).replace(/\{total\}/g, t) : FORMATS[o.format](n, t);
+  };
 
   let previewGen = 0;
   async function drawPreview() {
@@ -100,7 +105,7 @@
     const lab = renderLabel(text, o, k * 3, 1), { ox, oy } = place(pageW, pageH, lab, o);
     ctx.drawImage(lab.canvas, ox * k, c.height - (oy + lab.h) * k, lab.w * k, lab.h * k);
   }
-  for (const k of ["format", "font", "size", "color", "jitter", "margin", "from", "first", "mode", "chapters", "manual"]) {
+  for (const k of ["format", "font", "size", "color", "jitter", "margin", "from", "first", "mode", "chapters", "manual", "template"]) {
     el[k].addEventListener("input", drawPreview);
     el[k].addEventListener("change", drawPreview);
   }
@@ -112,6 +117,7 @@
     el.firstLabel.textContent = m === "chapter" ? "最初の章の番号" : "最初の番号";
   }
   el.mode.addEventListener("change", syncMode);
+  el.format.addEventListener("change", () => { el.templateBox.hidden = el.format.value !== "custom"; });
 
   async function loadFile(file) {
     setSaveStatus(""); el.area.hidden = true; setStatus("読み込み中…");

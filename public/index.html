@@ -425,7 +425,13 @@
               <option value="p">p.1</option>
               <option value="dash">- 1 -</option>
               <option value="slash">1 / 全ページ数</option>
+              <option value="custom">手入力（例: 10月1日（{n}））</option>
             </select>
+          </div>
+          <div class="field-group" id="pn-templateBox" hidden>
+            <div class="field-label"><label for="pn-template">入れる文字</label></div>
+            <input id="pn-template" type="text" class="text-input" value="10月1日（{n}）" placeholder="例: 10月1日（{n}）" style="width:200px">
+            <p class="field-hint-plain">{n} の部分が、下の「番号の付け方」で決めた番号（1、1-1など）に置き換わります。{total} は最後の番号です。{n} を入れなければ、全ページに同じ文字が入ります。</p>
           </div>
           <div class="field-group">
             <div class="field-label"><label for="pn-font">書体</label></div>
@@ -507,7 +513,7 @@
 <script src="pages.js?v=4"></script>
 <script src="meta.js?v=3"></script>
 <script src="shrink.js?v=4"></script>
-<script src="pageno.js?v=3"></script>
+<script src="pageno.js?v=4"></script>
 <script src="app.js?v=3"></script>
 </body>
 </html>
