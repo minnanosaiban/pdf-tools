@@ -444,7 +444,25 @@
         <div>
           <div class="field-group"><div class="field-label"><label for="pn-margin">端からの余白（mm）</label></div><input id="pn-margin" type="number" class="text-input" min="0" max="100" step="1" value="10" style="width:90px"></div>
           <div class="field-group"><div class="field-label"><label for="pn-from">何ページ目から付けるか</label></div><input id="pn-from" type="number" class="text-input" min="1" step="1" value="1" style="width:90px"></div>
-          <div class="field-group"><div class="field-label"><label for="pn-first">最初の番号</label></div><input id="pn-first" type="number" class="text-input" min="0" step="1" value="1" style="width:90px"></div>
+          <div class="field-group">
+            <div class="field-label"><label for="pn-mode">番号の付け方</label></div>
+            <select id="pn-mode" class="text-input">
+              <option value="serial">連番（1, 2, 3…）</option>
+              <option value="chapter">章-ページ（1-1, 1-2, 2-1…）</option>
+              <option value="manual">手入力（ページごとに自由に）</option>
+            </select>
+          </div>
+          <div class="field-group" id="pn-firstBox"><div class="field-label"><label for="pn-first" id="pn-firstLabel">最初の番号</label></div><input id="pn-first" type="number" class="text-input" min="0" step="1" value="1" style="width:90px"></div>
+          <div class="field-group" id="pn-chaptersBox" hidden>
+            <div class="field-label"><label for="pn-chapters">各章の最初のページ</label></div>
+            <input id="pn-chapters" type="text" class="text-input" placeholder="例: 1, 4, 9" style="width:160px">
+            <p class="field-hint-plain">例：「1, 4, 9」なら、1〜3ページが1-1・1-2・1-3、4〜8ページが2-1…、9ページから3-1…になります。</p>
+          </div>
+          <div class="field-group" id="pn-manualBox" hidden>
+            <div class="field-label"><label for="pn-manual">ページごとの番号（1行に1ページ分）</label></div>
+            <textarea id="pn-manual" class="text-input" rows="6" placeholder="1-1&#10;1-2&#10;1-3&#10;2-1" style="width:160px"></textarea>
+            <p class="field-hint-plain">「何ページ目から」のページから順に割り当てます。足りないページには番号を付けません。カンマ区切りでも入力できます。</p>
+          </div>
           <p class="cap">※表紙を飛ばしたいときは「何ページ目から」を2にします。</p>
         </div>
         <div>
@@ -489,7 +507,7 @@
 <script src="pages.js?v=4"></script>
 <script src="meta.js?v=3"></script>
 <script src="shrink.js?v=4"></script>
-<script src="pageno.js?v=2"></script>
+<script src="pageno.js?v=3"></script>
 <script src="app.js?v=3"></script>
 </body>
 </html>

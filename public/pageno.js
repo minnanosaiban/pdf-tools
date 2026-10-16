@@ -17,14 +17,16 @@
   let pdfBytes = null, baseName = "pdf", pageCount = 1, pageW = 595, pageH = 842, pos = POS[5];
 
   const el = {};
-  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "margin", "from", "first", "pos", "preview", "save", "saveStatus"]) el[k] = $("pn-" + k);
+  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "margin", "from", "first", "mode", "chapters", "manual", "firstBox", "firstLabel", "chaptersBox", "manualBox", "pos", "preview", "save", "saveStatus"]) el[k] = $("pn-" + k);
   const setStatus = (m, err) => { el.status.textContent = m || ""; el.status.classList.toggle("is-error", !!err); };
   const setSaveStatus = (m, err) => { el.saveStatus.textContent = m || ""; el.saveStatus.classList.toggle("is-error-text", !!err); };
   const num = (e, lo, hi, def) => Math.min(hi, Math.max(lo, Math.round(+e.value) || def));
   const opts = () => ({
     format: el.format.value, font: el.font.value, size: num(el.size, 6, 72, 12), color: el.color.value, jitter: +el.jitter.value,
     margin: Math.min(100, Math.max(0, +el.margin.value || 0)) * MM, from: num(el.from, 1, pageCount, 1), first: Math.max(0, Math.round(+el.first.value) || 0),
+    mode: el.mode.value, chapters: parseList(el.chapters.value).map(Number).filter((n) => Number.isInteger(n) && n >= 1), manual: parseList(el.manual.value),
   });
+  const parseList = (s) => s.split(/[\n,、，]+/).map((x) => x.trim()).filter(Boolean);
 
   POS.forEach((p, i) => {
     const l = document.createElement("label");
@@ -72,13 +74,23 @@
     const yTop = pos[2] === 0 ? o.margin : vh - o.margin - lab.th;   // 文字の上端（上から測る）
     return { ox: x - lab.pad, oy: vh - (yTop + lab.th) - lab.pad };
   }
-  const labelText = (o, i, total) => FORMATS[o.format](o.first + (i - o.from), o.first + (total - o.from));
+  // ページ i に付ける番号の文字列（付けないページは空文字）。書式（1頁など）をかける前の中身
+  function baseLabel(o, i) {
+    if (o.mode === "manual") return o.manual[i - o.from] || "";
+    if (o.mode === "chapter") {
+      const starts = [o.from, ...new Set(o.chapters.filter((p) => p > o.from))].sort((a, b) => a - b);
+      let c = 0; while (c + 1 < starts.length && starts[c + 1] <= i) c++;
+      return `${o.first + c}-${i - starts[c] + 1}`;
+    }
+    return String(o.first + (i - o.from));
+  }
+  const labelText = (o, i, total) => { const n = baseLabel(o, i); return n && FORMATS[o.format](n, baseLabel(o, total) || n); };
 
   let previewGen = 0;
   async function drawPreview() {
     if (!pdfBytes) return;
     const gen = ++previewGen, o = opts(), W = 220, k = W / pageW, c = el.preview;
-    const text = labelText(o, o.from, pageCount);
+    const text = labelText(o, o.from, pageCount) || "（番号なし）";
     await ensureFont(o, text);
     if (gen !== previewGen) return;
     c.width = W; c.height = Math.round(pageH * k);
@@ -88,12 +100,18 @@
     const lab = renderLabel(text, o, k * 3, 1), { ox, oy } = place(pageW, pageH, lab, o);
     ctx.drawImage(lab.canvas, ox * k, c.height - (oy + lab.h) * k, lab.w * k, lab.h * k);
   }
-  for (const k of ["format", "font", "size", "color", "jitter", "margin", "from", "first"]) {
+  for (const k of ["format", "font", "size", "color", "jitter", "margin", "from", "first", "mode", "chapters", "manual"]) {
     el[k].addEventListener("input", drawPreview);
     el[k].addEventListener("change", drawPreview);
   }
   el.font.addEventListener("change", () => { el.jitter.disabled = el.font.value === "std"; });
   el.jitter.disabled = true;
+  function syncMode() {
+    const m = el.mode.value;
+    el.firstBox.hidden = m === "manual"; el.chaptersBox.hidden = m !== "chapter"; el.manualBox.hidden = m !== "manual";
+    el.firstLabel.textContent = m === "chapter" ? "最初の章の番号" : "最初の番号";
+  }
+  el.mode.addEventListener("change", syncMode);
 
   async function loadFile(file) {
     setSaveStatus(""); el.area.hidden = true; setStatus("読み込み中…");
@@ -124,11 +142,15 @@
       const o = opts(), doc = await PDFDocument.load(pdfBytes, { updateMetadata: false }), pages = doc.getPages();
       await ensureFont(o, "0123456789頁ページp./- ");
       const seedBase = (Math.random() * 1e9) | 0;
+      let numbered = 0;
       for (let i = o.from; i <= pages.length; i++) {
+        const text = labelText(o, i, pages.length);
+        if (!text) continue;   // 手入力で番号が足りないページは付けない
+        numbered++;
         const pg = pages[i - 1], { x: cx0, y: cy0, width: pw, height: ph } = pg.getCropBox();
         const R = ((pg.getRotation().angle % 360) + 360) % 360;
         const vw = R % 180 ? ph : pw, vh = R % 180 ? pw : ph;
-        const lab = renderLabel(labelText(o, i, pages.length), o, 4, seedBase + i), { ox, oy } = place(vw, vh, lab, o);
+        const lab = renderLabel(text, o, 4, seedBase + i), { ox, oy } = place(vw, vh, lab, o);
         const blob = await new Promise((res) => lab.canvas.toBlob(res, "image/png"));
         const img = await doc.embedPng(new Uint8Array(await blob.arrayBuffer()));
         // 見た目の左下を原点とする(ox,oy)を、ページ(/Rotate)の座標へ戻す。画像はページと逆向きに回して正立させる
@@ -138,7 +160,7 @@
         setSaveStatus(`書き込み中… ${i}/${pages.length}ページ`);
       }
       await saveBlob(new Blob([await doc.save()], { type: "application/pdf" }), `${baseName}_pageno.pdf`, target);
-      setSaveStatus(`保存しました（${pages.length - o.from + 1}ページに番号を入れました、${pos[0]}）。${target ? "" : "ダウンロードを開始しました。"}`);
+      setSaveStatus(`保存しました（${numbered}ページに番号を入れました、${pos[0]}）。${target ? "" : "ダウンロードを開始しました。"}`);
     } catch (e) {
       setSaveStatus("保存に失敗しました: " + (e && e.message || e), true);
     } finally { el.save.disabled = false; }
