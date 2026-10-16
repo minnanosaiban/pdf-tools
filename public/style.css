@@ -235,3 +235,8 @@ input[type="color"] { width: 40px; height: 40px; padding: 2px; border: 1px solid
 .sh-pos input:focus-visible + span { outline: 2px solid var(--tx-text); outline-offset: 2px; }
 .sh-preview { position: relative; width: 150px; border: 1px solid var(--tx-border); background: #fff; box-shadow: var(--tx-shadow-sm); }
 .sh-preview-inner { position: absolute; border: 1.5px dashed #5f6368; background: #eef0f2; }
+
+/* ページ番号：手入力（ページを見ながら入力） */
+.pn-pager { margin: 4px 0 16px; display: flex; flex-direction: column; gap: 10px; }
+.pn-pager-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.pn-page { width: 100%; max-width: 520px; height: auto; border: 1px solid var(--tx-border); box-shadow: var(--tx-shadow-sm); background: #fff; }
