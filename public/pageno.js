@@ -53,19 +53,23 @@
   function renderLabel(text, o, k, seed) {
     const px = o.size * k, pad = o.size * 0.3, c = document.createElement("canvas"), ctx = c.getContext("2d");
     ctx.font = fontStr(o, px);
-    const chars = Array.from(text), adv = chars.map((ch) => ctx.measureText(ch).width);
-    const tw = adv.reduce((a, b) => a + b, 0) / k, th = o.size * 1.2;
+    const lines = text.split("\n").map((ln) => { const chars = Array.from(ln); return { chars, adv: chars.map((ch) => ctx.measureText(ch).width) }; });
+    const lw = lines.map((l) => l.adv.reduce((a, b) => a + b, 0) / k), lh = o.size * 1.2;
+    const tw = Math.max(...lw, 0), th = lh * lines.length;
     c.width = Math.ceil((tw + pad * 2) * k * 1.04); c.height = Math.ceil((th + pad * 2) * k);
     ctx.font = fontStr(o, px); ctx.fillStyle = o.color; ctx.textBaseline = "middle";
     const hand = o.font !== "std", j = hand ? o.jitter / 100 : 0, r = rng(seed);
-    let x = pad * k;
-    chars.forEach((ch, i) => {
-      const dy = (r() - 0.5) * px * 0.2 * j, rot = (r() - 0.5) * 0.2 * j, sc = 1 + (r() - 0.5) * 0.14 * j;
-      ctx.save();
-      ctx.translate(x + adv[i] / 2, c.height / 2 + dy); ctx.rotate(rot); ctx.scale(sc, sc);
-      ctx.fillText(ch, -adv[i] / 2, 0);
-      ctx.restore();
-      x += adv[i] * (1 + (r() - 0.5) * 0.08 * j);
+    lines.forEach((l, li) => {
+      let x = (pad + (tw - lw[li]) * pos[1]) * k;   // 複数行は、置く位置に合わせて左／中央／右にそろえる
+      const cy = (pad + lh * (li + 0.5)) * k;
+      l.chars.forEach((ch, i) => {
+        const dy = (r() - 0.5) * px * 0.2 * j, rot = (r() - 0.5) * 0.2 * j, sc = 1 + (r() - 0.5) * 0.14 * j;
+        ctx.save();
+        ctx.translate(x + l.adv[i] / 2, cy + dy); ctx.rotate(rot); ctx.scale(sc, sc);
+        ctx.fillText(ch, -l.adv[i] / 2, 0);
+        ctx.restore();
+        x += l.adv[i] * (1 + (r() - 0.5) * 0.08 * j);
+      });
     });
     return { canvas: c, pad, tw, th, w: c.width / k, h: c.height / k };
   }
@@ -86,7 +90,7 @@
     return String(o.first + (i - o.from));
   }
   const labelText = (o, i, total) => {
-    if (o.format === "custom") return (o.texts[i - 1] || "").trim();   // 手入力：自動の番号は使わない
+    if (o.format === "custom") return (o.texts[i - 1] || "").replace(/^\s+|\s+$/g, "");   // 手入力：自動の番号は使わない
     const n = baseLabel(o, i), t = baseLabel(o, total) || n;
     return n ? FORMATS[o.format](n, t) : "";
   };
@@ -151,7 +155,7 @@
     el.filled.textContent = `入力済み ${pageTexts.filter((t) => t && t.trim()).length} / ${pageCount} ページ`;
   }
   el.pageText.addEventListener("input", () => { pageTexts[cur - 1] = el.pageText.value; drawPager(); });
-  el.pageText.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); showPage(cur + 1); } });   // 日本語変換の確定のEnterでは進まない
+  el.pageText.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); showPage(cur + 1); } });   // Enterは改行。Ctrl+Enterで次のページ
   el.prev.addEventListener("click", () => showPage(cur - 1));
   el.next.addEventListener("click", () => showPage(cur + 1));
 

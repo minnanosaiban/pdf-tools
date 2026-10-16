@@ -480,8 +480,8 @@
           <span class="cap" id="pn-filled"></span>
         </div>
         <div class="field-group" style="margin-bottom:8px">
-          <label class="field-label" for="pn-pageText">このページに入れる文字（Enterで次のページへ）</label>
-          <input id="pn-pageText" type="text" class="text-input" placeholder="例: 10月1日（1-1）" style="max-width:420px">
+          <label class="field-label" for="pn-pageText">このページに入れる文字（Enterで改行、Ctrl+Enterで次のページへ）</label>
+          <textarea id="pn-pageText" class="text-input" rows="2" placeholder="例: 10月1日（1-1）" style="max-width:420px"></textarea>
         </div>
         <canvas id="pn-pageCanvas" class="pn-page" aria-label="ページのイメージ"></canvas>
       </div>
@@ -516,7 +516,7 @@
 <script src="pages.js?v=4"></script>
 <script src="meta.js?v=3"></script>
 <script src="shrink.js?v=4"></script>
-<script src="pageno.js?v=5"></script>
+<script src="pageno.js?v=6"></script>
 <script src="app.js?v=3"></script>
 </body>
 </html>
