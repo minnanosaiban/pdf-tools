@@ -223,3 +223,15 @@ input[type="color"] { width: 40px; height: 40px; padding: 2px; border: 1px solid
   .page-card { width: calc(50% - 8px); }
   .toolbar-sep { display: none; }
 }
+
+/* 縮小・配置 */
+.sh-layout { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin-bottom: 8px; }
+.sh-scale-row { display: flex; align-items: center; gap: 10px; }
+.sh-pos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 240px; }
+.sh-pos label { display: block; cursor: pointer; }
+.sh-pos input { position: absolute; opacity: 0; pointer-events: none; }
+.sh-pos span { display: block; text-align: center; padding: 8px 4px; font-size: 13px; border: 1px solid var(--tx-border); border-radius: 8px; background: #fff; }
+.sh-pos input:checked + span { background: var(--tx-text); color: #fff; border-color: var(--tx-text); font-weight: 700; }
+.sh-pos input:focus-visible + span { outline: 2px solid var(--tx-text); outline-offset: 2px; }
+.sh-preview { position: relative; width: 150px; border: 1px solid var(--tx-border); background: #fff; box-shadow: var(--tx-shadow-sm); }
+.sh-preview-inner { position: absolute; border: 1.5px dashed #5f6368; background: #eef0f2; }

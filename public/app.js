@@ -2,7 +2,7 @@
 
 // 機能切り替え（ヒーローの「機能」ボタン）。選択は#ハッシュとlocalStorageに保存する。
 (() => {
-  const TOOLS = ["redact", "hand", "pages", "meta"];
+  const TOOLS = ["redact", "hand", "pages", "meta", "shrink"];
   const KEY = "pdf-tools-active-v1";
   const buttons = Array.from(document.querySelectorAll("#toolGrid .theme-swatch"));
   const panels = Array.from(document.querySelectorAll("[data-panel]"));

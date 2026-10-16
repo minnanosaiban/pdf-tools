@@ -61,6 +61,7 @@
           <button type="button" class="theme-swatch" role="tab" data-tool="hand">手書き風文字追加</button>
           <button type="button" class="theme-swatch" role="tab" data-tool="pages">結合・分割・回転</button>
           <button type="button" class="theme-swatch" role="tab" data-tool="meta">メタデータ編集削除</button>
+          <button type="button" class="theme-swatch" role="tab" data-tool="shrink">縮小・配置</button>
         </div>
       </div>
     </div>
@@ -104,6 +105,13 @@
               <div class="mock-field"><span class="mock-field-label">作成者</span><span class="mock-field-input empty"></span></div>
               <div class="mock-field"><span class="mock-field-label">作成アプリ</span><span class="mock-field-input empty"></span></div>
               <div class="mock-field"><span class="mock-field-label">変換アプリ</span><span class="mock-field-input empty"></span></div>
+            </div>
+            <div class="mock-doc" data-mock="shrink" hidden>
+              <div class="mock-thumbs" style="padding-top:20px">
+                <div class="mock-thumb-page"><span class="mock-line"></span><span class="mock-line"></span><span class="mock-line" style="width:60%"></span></div>
+                <span class="mock-plus">→</span>
+                <div class="mock-thumb-page" style="position:relative"><div style="position:absolute;left:4px;top:4px;width:85%;height:85%;border:1px dashed #9aa0a6;border-radius:3px;background:#f6f7f8"></div></div>
+              </div>
             </div>
           </div>
         </div>
@@ -339,12 +347,54 @@
       </div>
     </div>
   </section>
+
+  <!-- ============ 縮小・配置 ============ -->
+  <section class="tool-panel" id="panel-shrink" data-panel="shrink" hidden>
+    <h2 class="panel-title">縮小・配置</h2>
+    <p class="panel-lead">PDFの各ページを指定の倍率に縮小し、ページ内の好きな位置（左上・上中央・中心など）に置きます。用紙サイズ（A4など）は変わらず、縮めた分だけ余白ができます。ページの文字や図は画像にならず、そのまま縮小されます。</p>
+
+    <div class="card toolbar">
+      <label class="btn-outline filebtn" id="sh-drop" style="cursor:pointer">
+        <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+        PDFを選ぶ
+        <input id="sh-file" type="file" accept="application/pdf">
+      </label>
+      <span class="badge" id="sh-filename" hidden></span>
+      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。</p>
+    </div>
+
+    <p class="status" id="sh-status">PDFを選ぶと、設定と配置のイメージが表示されます。</p>
+
+    <div class="card" id="sh-area" hidden>
+      <div class="sh-layout">
+        <div class="field-group">
+          <div class="field-label"><label for="sh-scale">縮小後の大きさ（元の何％か）</label></div>
+          <div class="sh-scale-row">
+            <input type="range" id="sh-scaleRange" min="20" max="100" value="85" aria-label="縮小率（スライダー）">
+            <input type="number" class="text-input" id="sh-scale" min="20" max="100" step="1" value="85" style="width:80px"> <span>％</span>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-label" id="sh-posLabel">置く位置</div>
+          <div class="sh-pos" role="radiogroup" aria-labelledby="sh-posLabel" id="sh-pos"></div>
+        </div>
+        <div class="field-group">
+          <div class="field-label">イメージ</div>
+          <div class="sh-preview" id="sh-preview" aria-hidden="true"><div class="sh-preview-inner" id="sh-previewInner"></div></div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button type="button" class="btn-primary" id="sh-save">縮小して保存</button>
+        <p class="status" id="sh-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
 </main>
 
 <footer class="site-info" id="disclaimer">
   <div class="card">
     <div class="shead">■ このツールについて</div>
-    <p class="cap">※PDFの墨消し・検索、手書き風文字追加、結合・分割・回転、メタデータ編集削除をまとめたツールです。</p>
+    <p class="cap">※PDFの墨消し・検索、手書き風文字追加、結合・分割・回転、メタデータ編集削除、縮小・配置をまとめたツールです。</p>
     <p class="cap">※ご意見・ご要望は作成者までご連絡ください。</p>
     <a class="link" href="https://x.com/minnanosaiban" target="_blank" rel="noopener">@minnanosaiban</a>
   </div>
@@ -363,6 +413,7 @@
 <script src="hand.js?v=6"></script>
 <script src="pages.js?v=3"></script>
 <script src="meta.js?v=2"></script>
-<script src="app.js?v=1"></script>
+<script src="shrink.js?v=1"></script>
+<script src="app.js?v=2"></script>
 </body>
 </html>
