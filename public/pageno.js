@@ -17,7 +17,7 @@
   let pdfBytes = null, baseName = "pdf", pageCount = 1, pageW = 595, pageH = 842, pos = POS[5];
 
   const el = {};
-  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "angle", "jitterNote", "margin", "from", "first", "mode", "chapters", "modeBox", "fromBox", "skipNote", "previewBox", "firstBox", "firstLabel", "chaptersBox", "pager", "prev", "next", "pageInfo", "filled", "pageText", "pageCanvas", "open", "saveWork", "pos", "preview", "save", "saveStatus"]) el[k] = $("pn-" + k);
+  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "angle", "jitterNote", "margin", "from", "first", "mode", "chapters", "modeBox", "fromBox", "skipNote", "previewBox", "firstBox", "firstLabel", "chaptersBox", "pager", "prev", "next", "pageInfo", "docName", "filled", "pageText", "pageCanvas", "open", "saveWork", "pos", "preview", "save", "saveStatus"]) el[k] = $("pn-" + k);
   const setStatus = (m, err) => { el.status.textContent = m || ""; el.status.classList.toggle("is-error", !!err); };
   const setSaveStatus = (m, err) => { el.saveStatus.textContent = m || ""; el.saveStatus.classList.toggle("is-error-text", !!err); };
   const num = (e, lo, hi, def) => Math.min(hi, Math.max(lo, Math.round(+e.value) || def));
@@ -136,6 +136,7 @@
     cur = Math.min(pageCount, Math.max(1, p));
     const gen = ++pagerGen;
     el.pageInfo.textContent = `p.${cur} / ${pageCount}`;
+    el.docName.textContent = `📄 ${baseName}.pdf`;
     el.pageText.value = pageTexts[cur - 1] || "";
     el.prev.disabled = cur <= 1; el.next.disabled = cur >= pageCount;
     if (!pnPdf) return;

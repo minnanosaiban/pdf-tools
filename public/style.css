@@ -238,6 +238,11 @@ input[type="color"] { width: 40px; height: 40px; padding: 2px; border: 1px solid
 
 /* ページ番号：手入力（ページを見ながら入力） */
 .pn-pager { margin: 4px 0 16px; display: flex; flex-direction: column; gap: 10px; }
+.pn-pager-body { display: grid; grid-template-columns: minmax(240px, 380px) minmax(0, 520px); gap: 20px; align-items: start; }
+.pn-pager-ctl { display: flex; flex-direction: column; gap: 10px; }
+.pn-pager-ctl textarea { width: 100%; }
+.pn-doc { font-weight: 700; word-break: break-all; padding: 6px 10px; background: var(--tx-bg-muted); border-radius: 6px; }
+@media (max-width: 760px) { .pn-pager-body { grid-template-columns: minmax(0, 1fr); } }
 .pn-pager-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .pn-page { width: 100%; max-width: 520px; height: auto; border: 1px solid var(--tx-border); box-shadow: var(--tx-shadow-sm); background: #fff; }
 

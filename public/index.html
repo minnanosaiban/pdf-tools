@@ -443,6 +443,25 @@
     <p class="status" id="pn-status">PDFを選ぶと、設定とイメージが表示されます。</p>
 
     <div class="card" id="pn-area" hidden>
+      <div id="pn-pager" class="pn-pager" hidden>
+        <div class="field-label">ページを見ながら、1ページずつ入れる文字を入力します（空欄のページには入れません）</div>
+        <div class="pn-pager-body">
+          <div class="pn-pager-ctl">
+            <div class="pn-doc" id="pn-docName" title="入力中のPDF"></div>
+            <div class="pn-pager-nav">
+              <button type="button" class="btn-outline" id="pn-prev">&larr; 前のページ</button>
+              <span class="badge" id="pn-pageInfo" aria-live="polite">p.1 / 1</span>
+              <button type="button" class="btn-outline" id="pn-next">次のページ &rarr;</button>
+            </div>
+            <span class="cap" id="pn-filled"></span>
+            <div class="field-group" style="margin-bottom:8px">
+              <label class="field-label" for="pn-pageText">このページに入れる文字（Enterで改行、Ctrl+Enterで次のページへ）</label>
+              <textarea id="pn-pageText" class="text-input" rows="2" placeholder="例: 10月1日（1-1）"></textarea>
+            </div>
+          </div>
+          <canvas id="pn-pageCanvas" class="pn-page" aria-label="ページのイメージ"></canvas>
+        </div>
+      </div>
       <div class="sh-layout">
         <div>
           <div class="field-group">
@@ -500,20 +519,6 @@
             <canvas id="pn-preview" style="border:1px solid var(--tx-border);box-shadow:var(--tx-shadow-sm);background:#fff;max-width:100%" aria-label="ページ番号の位置のイメージ"></canvas>
           </div>
         </div>
-      </div>
-      <div id="pn-pager" class="pn-pager" hidden>
-        <div class="field-label">ページを見ながら、1ページずつ入れる文字を入力します（空欄のページには入れません）</div>
-        <div class="pn-pager-nav">
-          <button type="button" class="btn-outline" id="pn-prev">&larr; 前のページ</button>
-          <span class="badge" id="pn-pageInfo" aria-live="polite">p.1 / 1</span>
-          <button type="button" class="btn-outline" id="pn-next">次のページ &rarr;</button>
-          <span class="cap" id="pn-filled"></span>
-        </div>
-        <div class="field-group" style="margin-bottom:8px">
-          <label class="field-label" for="pn-pageText">このページに入れる文字（Enterで改行、Ctrl+Enterで次のページへ）</label>
-          <textarea id="pn-pageText" class="text-input" rows="2" placeholder="例: 10月1日（1-1）" style="max-width:420px"></textarea>
-        </div>
-        <canvas id="pn-pageCanvas" class="pn-page" aria-label="ページのイメージ"></canvas>
       </div>
     </div>
   </section>
