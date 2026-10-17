@@ -79,15 +79,26 @@ async function readWorkFile(file, tool) {
 }
 
 // クリック選択に加え、ドラッグ＆ドロップでもファイルを受け取る。
+// 受け付けるのはボタン上だけでなく、その機能の画面全体（落とす場所を狙わなくてよい）。
 function wireDrop(el, onFiles, multiple) {
-  el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("dragover"); });
-  el.addEventListener("dragleave", () => el.classList.remove("dragover"));
-  el.addEventListener("drop", (e) => {
-    e.preventDefault(); el.classList.remove("dragover");
+  const zone = el.closest(".tool-panel") || el;
+  const hasFiles = (e) => Array.from((e.dataTransfer && e.dataTransfer.types) || []).includes("Files");
+  let depth = 0;
+  const off = () => { depth = 0; el.classList.remove("dragover"); };
+  zone.addEventListener("dragenter", (e) => { if (hasFiles(e)) { depth++; el.classList.add("dragover"); } });
+  zone.addEventListener("dragover", (e) => { if (hasFiles(e)) { e.preventDefault(); el.classList.add("dragover"); } });
+  zone.addEventListener("dragleave", (e) => { if (hasFiles(e) && --depth <= 0) off(); });
+  zone.addEventListener("drop", (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); off();
     const fs = Array.from(e.dataTransfer.files || []);
     if (fs.length) onFiles(multiple ? fs : [fs[0]]);
   });
 }
+
+// 画面のどこに落としても、ブラウザがPDFを開いて画面が切り替わらないようにする
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => e.preventDefault());
 
 // ドロップゾーン外にファイルを落とした時にブラウザがファイルを開いてしまうのを防ぐ
 function blockStrayDrop(el) {
