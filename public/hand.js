@@ -15,7 +15,7 @@
     jitter: $("hw-jitter"), angle: $("hw-angle"), kind: $("hw-kind"), lw: $("hw-lw"),
     er: $("hw-er"), erUndo: $("hw-erUndo"),
     count: $("hw-count"), del: $("hw-delete"), clear: $("hw-clear"), save: $("hw-save"),
-    saveStatus: $("hw-saveStatus"), status: $("hw-status"),
+    saveStatus: $("hw-saveStatus"), status: $("hw-status"), open: $("hw-open"), saveWork: $("hw-saveWork"),
   };
   const setStatus = (m, err) => { el.status.textContent = m || ""; el.status.classList.toggle("is-error", !!err); };
   const setSaveStatus = (m, err) => { el.saveStatus.textContent = m || ""; el.saveStatus.classList.toggle("is-error-text", !!err); };
@@ -281,6 +281,7 @@
     el.count.textContent = `要素: ${items.filter((i) => !isBlankText(i)).length}`;
     el.del.disabled = selectedId == null;
     el.save.disabled = !pdf || !items.some((i) => !isBlankText(i));
+    el.saveWork.disabled = !pdf;
   }
   const isBlankText = (it) => it.type === "text" && !it.text.trim();
   function select(id) {
@@ -516,10 +517,39 @@
   $("hw-file").onchange = (e) => { if (e.target.files[0]) loadFile(e.target.files[0]); e.target.value = ""; };
   wireDrop($("hw-drop"), (fs) => loadFile(fs[0]));
 
-  async function loadFile(file) {
+  // 作業ファイルから読み込んだ要素は、形と範囲を確かめてから使う（受け取った.jsonは信用しない）
+  const FONTS = ["Yomogi", "Klee One", "Zen Kurenaido", "Yusei Magic"], TYPES = ["text", "rect", "ellipse", "braceL", "braceR", "arrow"];
+  const fin = (v, lo, hi, def) => (Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : def);
+  function sanitizeItems(arr, numPages) {
+    if (!Array.isArray(arr)) return [];
+    const out = [];
+    for (const r of arr.slice(0, 2000)) {
+      if (!r || typeof r !== "object" || !TYPES.includes(r.type)) continue;
+      const it = { id: ++seq, page: Math.round(fin(r.page, 1, numPages, 0)), type: r.type, x: fin(r.x, 0, 1, 0), y: fin(r.y, 0, 1, 0),
+        color: /^#[0-9a-f]{6}$/i.test(r.color) ? r.color : "#1d3fa8", jitter: fin(r.jitter, 0, 100, 45), seed: Math.round(fin(r.seed, 0, 1e9, 1)) };
+      if (!it.page) continue;
+      if (r.type === "text") {
+        Object.assign(it, { text: typeof r.text === "string" ? r.text.slice(0, 2000) : "", font: FONTS.includes(r.font) ? r.font : FONTS[0],
+          size: clampPt(r.size, 24), angle: fin(r.angle, -30, 30, 0) });
+      } else {
+        Object.assign(it, { w: fin(r.w, 0, 1, 0), h: fin(r.h, 0, 1, 0), lw: fin(r.lw, 0.25, 12, 2.5), fx: !!r.fx, fy: !!r.fy });
+      }
+      if (Array.isArray(r.erase)) {
+        it.erase = r.erase.slice(0, 5000).filter((st) => st && Array.isArray(st.pts)).map((st) => ({
+          r: fin(st.r, 1, 100, 12),
+          pts: st.pts.slice(0, 5000).filter((p) => Array.isArray(p) && Number.isFinite(+p[0]) && Number.isFinite(+p[1])).map((p) => [+p[0], +p[1]]) }));
+      }
+      out.push(it);
+    }
+    return out;
+  }
+
+  // restore があれば、それ（作業ファイルの中のPDFと要素）から読み込む
+  async function loadFile(file, restore) {
     setSaveStatus("");
     try {
-      const buf = new Uint8Array(await file.arrayBuffer());
+      const buf = restore ? restore.bytes : new Uint8Array(await file.arrayBuffer());
+      const fileName = restore ? restore.name : file.name;
       pdfBytes = buf.slice();
       const doc = await pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise;
       pdf = doc;
@@ -531,14 +561,40 @@
         if (pdf !== doc || !viewer.dom[p]) return;   // 読み込み中に別のファイルが選ばれた
         viewer.dom[p].ptW = w;
       }
-      baseName = file.name.replace(/\.pdf$/i, "") || "pdf";
-      setStatus(`${file.name}（${pdf.numPages}ページ）を読み込みました。上に文字を入力し、置きたい場所をクリックしてください。`);
+      baseName = fileName.replace(/\.pdf$/i, "") || "pdf";
+      if (restore) {
+        items = sanitizeItems(restore.state.items, doc.numPages);
+        for (const it of items) if (it.type === "text") ensureFont(it);
+        redrawAll();
+        setStatus(`作業ファイルから「${fileName}」（${pdf.numPages}ページ、要素${items.length}件）を開きました。続きから編集できます。`);
+      } else {
+        setStatus(`${fileName}（${pdf.numPages}ページ）を読み込みました。上に文字を入力し、置きたい場所をクリックしてください。`);
+      }
     } catch (e) {
       pdf = null; items = []; eraseHistory.length = 0; selectedId = null; viewer.reset();   // 古いページ表示を残さない
       setStatus(/password|encrypt/i.test(String(e && e.message || e)) ? "パスワード保護されたPDFには対応していません。" : "PDFを読み込めませんでした。", true);
     }
     updateChrome();
   }
+
+  // ---- 作業ファイル（.json）の保存・読み込み ----
+  el.open.onchange = async () => {
+    const f = el.open.files[0]; el.open.value = "";
+    if (!f) return;
+    if (/\.pdf$/i.test(f.name) || f.type === "application/pdf") { loadFile(f); return; }
+    try { await loadFile(null, await readWorkFile(f, "hand")); }
+    catch (e) { setStatus(String(e && e.message || e), true); }
+  };
+  el.saveWork.onclick = async () => {
+    if (!pdf) return;
+    const fname = `${baseName}_hand.json`, target = await pickSaveTarget(fname, "json");
+    if (target === false) { setSaveStatus("保存をキャンセルしました。"); return; }
+    try {
+      const keep = items.filter((i) => !isBlankText(i));
+      await saveBlob(makeWorkBlob("hand", pdfBytes, baseName + ".pdf", { items: JSON.parse(JSON.stringify(keep)) }), fname, target);
+      setSaveStatus(`作業を保存しました（要素${keep.length}件）。${target ? "" : "ダウンロードを開始しました。"}「ファイルを開く」から続きを編集できます。`);
+    } catch (e) { setSaveStatus("作業ファイルの保存に失敗しました: " + (e && e.message || e), true); }
+  };
 
   // ---- 保存 ----
   el.save.onclick = async () => {

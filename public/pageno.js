@@ -17,7 +17,7 @@
   let pdfBytes = null, baseName = "pdf", pageCount = 1, pageW = 595, pageH = 842, pos = POS[5];
 
   const el = {};
-  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "angle", "jitterNote", "margin", "from", "first", "mode", "chapters", "modeBox", "fromBox", "skipNote", "previewBox", "firstBox", "firstLabel", "chaptersBox", "pager", "prev", "next", "pageInfo", "filled", "pageText", "pageCanvas", "pos", "preview", "save", "saveStatus"]) el[k] = $("pn-" + k);
+  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "angle", "jitterNote", "margin", "from", "first", "mode", "chapters", "modeBox", "fromBox", "skipNote", "previewBox", "firstBox", "firstLabel", "chaptersBox", "pager", "prev", "next", "pageInfo", "filled", "pageText", "pageCanvas", "open", "saveWork", "pos", "preview", "save", "saveStatus"]) el[k] = $("pn-" + k);
   const setStatus = (m, err) => { el.status.textContent = m || ""; el.status.classList.toggle("is-error", !!err); };
   const setSaveStatus = (m, err) => { el.saveStatus.textContent = m || ""; el.saveStatus.classList.toggle("is-error-text", !!err); };
   const num = (e, lo, hi, def) => Math.min(hi, Math.max(lo, Math.round(+e.value) || def));
@@ -164,27 +164,65 @@
   el.prev.addEventListener("click", () => showPage(cur - 1));
   el.next.addEventListener("click", () => showPage(cur + 1));
 
-  async function loadFile(file) {
+  // 作業ファイルの設定を画面へ戻す（受け取った.jsonは信用せず、選択肢・範囲を確かめてから使う）
+  function applyState(st) {
+    const sel = (e, v) => { if (typeof v === "string" && [...e.options].some((o) => o.value === v)) e.value = v; };
+    const num2 = (e, v, lo, hi) => { v = +v; if (Number.isFinite(v)) e.value = Math.min(hi, Math.max(lo, v)); };
+    sel(el.format, st.format); sel(el.font, st.font); sel(el.mode, st.mode);
+    num2(el.size, st.size, 6, 72); num2(el.jitter, st.jitter, 0, 100); num2(el.angle, st.angle, -15, 15);
+    num2(el.margin, st.margin, 0, 100); num2(el.from, st.from, 1, pageCount); num2(el.first, st.first, 0, 9999);
+    if (typeof st.color === "string" && /^#[0-9a-f]{6}$/i.test(st.color)) el.color.value = st.color;
+    el.chapters.value = typeof st.chapters === "string" ? st.chapters.slice(0, 200) : "";
+    const pi = Number.isInteger(st.pos) && POS[st.pos] ? st.pos : 5;
+    pos = POS[pi]; el.pos.querySelectorAll("input")[pi].checked = true;
+    pageTexts = Array.isArray(st.texts) ? st.texts.slice(0, pageCount).map((t) => (typeof t === "string" ? t.slice(0, 500) : "")) : [];
+    el.jitter.disabled = el.font.value === "std"; el.jitterNote.hidden = el.font.value !== "std";
+  }
+  const gatherState = () => ({ format: el.format.value, font: el.font.value, size: +el.size.value, color: el.color.value, jitter: +el.jitter.value,
+    angle: +el.angle.value, margin: +el.margin.value, from: +el.from.value, first: +el.first.value, mode: el.mode.value,
+    chapters: el.chapters.value, pos: POS.indexOf(pos), texts: pageTexts });
+
+  // restore があれば、それ（作業ファイルの中のPDFと設定）から読み込む
+  async function loadFile(file, restore) {
     setSaveStatus(""); el.area.hidden = true; setStatus("読み込み中…");
     try {
-      const buf = new Uint8Array(await file.arrayBuffer());
+      const buf = restore ? restore.bytes : new Uint8Array(await file.arrayBuffer());
+      const fileName = restore ? restore.name : file.name;
       const doc = await PDFDocument.load(buf, { updateMetadata: false });
       const p0 = doc.getPage(0), cb = p0.getCropBox(), R = ((p0.getRotation().angle % 360) + 360) % 360;
       pageW = R % 180 ? cb.height : cb.width; pageH = R % 180 ? cb.width : cb.height;
-      pageCount = doc.getPageCount(); pdfBytes = buf; baseName = file.name.replace(/\.pdf$/i, "") || "pdf";
+      pageCount = doc.getPageCount(); pdfBytes = buf; baseName = fileName.replace(/\.pdf$/i, "") || "pdf";
       el.from.max = pageCount; if (+el.from.value > pageCount) el.from.value = 1;
       if (pnPdf) { const old = pnPdf; pnPdf = null; Promise.resolve(old.destroy()).catch(() => {}); }
       pnPdf = await pdfjsLib.getDocument({ data: buf.slice(), isEvalSupported: false }).promise;
       pageTexts = []; baseCanvas = null;
-      el.filename.hidden = false; el.filename.textContent = `${file.name}（${pageCount}ページ）`;
+      if (restore) applyState(restore.state);
+      el.filename.hidden = false; el.filename.textContent = `${fileName}（${pageCount}ページ）`;
       el.area.hidden = false; syncMode(); drawPreview(); if (el.format.value === "custom") showPage(1);
-      setStatus("書式・位置などを選んで「ページ番号を入れて保存」を押してください。");
+      el.save.disabled = el.saveWork.disabled = false;
+      setStatus(restore ? `作業ファイルから「${fileName}」を開きました。続きから編集できます。` : "書式・位置などを選んで「PDFを保存」を押してください。");
     } catch (e) {
-      pdfBytes = null;
+      pdfBytes = null; el.save.disabled = el.saveWork.disabled = true;
       setStatus(/encrypt|password/i.test(String(e && e.message || e)) ? "パスワード保護されたPDFには対応していません。" : "PDFを読み込めませんでした。", true);
     }
   }
   el.file.addEventListener("change", () => { if (el.file.files[0]) loadFile(el.file.files[0]); el.file.value = ""; });
+  el.open.addEventListener("change", async () => {
+    const f = el.open.files[0]; el.open.value = "";
+    if (!f) return;
+    if (/\.pdf$/i.test(f.name) || f.type === "application/pdf") { loadFile(f); return; }
+    try { await loadFile(null, await readWorkFile(f, "pageno")); }
+    catch (e) { setStatus(String(e && e.message || e), true); }
+  });
+  el.saveWork.addEventListener("click", async () => {
+    if (!pdfBytes) return;
+    const fname = `${baseName}_pageno.json`, target = await pickSaveTarget(fname, "json");
+    if (target === false) { setSaveStatus("保存をキャンセルしました。"); return; }
+    try {
+      await saveBlob(makeWorkBlob("pageno", pdfBytes, baseName + ".pdf", gatherState()), fname, target);
+      setSaveStatus(`作業を保存しました。${target ? "" : "ダウンロードを開始しました。"}「ファイルを開く」から続きを編集できます。`);
+    } catch (e) { setSaveStatus("作業ファイルの保存に失敗しました: " + (e && e.message || e), true); }
+  });
   wireDrop($("pn-drop"), (fs) => loadFile(fs[0]));
 
   el.save.addEventListener("click", async () => {

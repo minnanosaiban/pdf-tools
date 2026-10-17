@@ -28,4 +28,16 @@
   let first = location.hash.slice(1);
   if (!TOOLS.includes(first)) { try { first = localStorage.getItem(KEY); } catch { first = null; } }
   show(first, false);
+
+  // 機能ボタン（トップメニュー）が画面の上へ外れた時だけ「↑」ボタンを出し、押すとその位置へ戻る。
+  // 見えている間に出すと、押しても動かないボタンになるため。
+  const backBtn = $("backToTopBtn"), menuEl = document.querySelector(".hero-theme-section");
+  const BACK_MARGIN = 12;   // 戻った時に、メニューの上へ残す余白（px）
+  const updateBackBtn = () => { backBtn.hidden = menuEl.getBoundingClientRect().bottom > 0; };
+  document.addEventListener("scroll", updateBackBtn);
+  window.addEventListener("resize", updateBackBtn);
+  backBtn.addEventListener("click", () => {
+    window.scrollTo({ top: Math.max(0, menuEl.getBoundingClientRect().top + window.scrollY - BACK_MARGIN), behavior: "smooth" });
+  });
+  updateBackBtn();
 })();

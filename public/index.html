@@ -33,7 +33,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yomogi&family=Klee+One:wght@400;600&family=Zen+Kurenaido&family=Yusei+Magic&display=swap">
 <script src="vendor/pdfjs/pdf.min.js"></script>
 <script src="vendor/pdf-lib/pdf-lib.min.js"></script>
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 
@@ -189,7 +189,15 @@
         PDFを選ぶ
         <input id="hw-file" type="file" accept="application/pdf">
       </label>
-      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。</p>
+      <label class="btn-outline filebtn" id="hw-openLabel" style="cursor:pointer" title="保存した作業ファイル（.json）を開いて、続きから編集します">
+        <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+        ファイルを開く
+        <input id="hw-open" type="file" accept=".json,application/json,.pdf,application/pdf">
+      </label>
+      <button id="hw-saveWork" type="button" class="btn-primary" disabled title="今の作業を.jsonファイルとして保存します（元のPDFも入ります）。あとで「ファイルを開く」から続きを編集できます">ファイルを保存</button>
+      <button id="hw-save" type="button" class="btn-primary" disabled title="編集結果を反映したPDFを保存します">PDFを保存</button>
+      <p class="status" id="hw-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
+      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。途中で保存したいときは「ファイルを保存」（.json）を使い、あとで「ファイルを開く」から続きを編集できます。</p>
     </div>
 
     <div class="sticky-menu" id="hw-menu">
@@ -232,8 +240,6 @@
       <button id="hw-erUndo" type="button" class="btn-outline" disabled>消しゴムを元に戻す</button>
       <button id="hw-delete" type="button" class="btn-outline" disabled>選択中の要素を削除</button>
       <button id="hw-clear" type="button" class="btn-outline">すべて削除</button>
-      <button id="hw-save" type="button" class="btn-primary" disabled>PDFを保存</button>
-      <p class="status" id="hw-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
     </div>
     </div>
 
@@ -422,8 +428,16 @@
         PDFを選ぶ
         <input id="pn-file" type="file" accept="application/pdf">
       </label>
+      <label class="btn-outline filebtn" id="pn-openLabel" style="cursor:pointer" title="保存した作業ファイル（.json）を開いて、続きから編集します">
+        <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+        ファイルを開く
+        <input id="pn-open" type="file" accept=".json,application/json,.pdf,application/pdf">
+      </label>
+      <button id="pn-saveWork" type="button" class="btn-primary" disabled title="今の作業を.jsonファイルとして保存します（元のPDFも入ります）。あとで「ファイルを開く」から続きを編集できます">ファイルを保存</button>
+      <button id="pn-save" type="button" class="btn-primary" disabled title="編集結果を反映したPDFを保存します">PDFを保存</button>
+      <p class="status" id="pn-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
       <span class="badge" id="pn-filename" hidden></span>
-      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。</p>
+      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。途中で保存したいときは「ファイルを保存」（.json）を使い、あとで「ファイルを開く」から続きを編集できます。</p>
     </div>
 
     <p class="status" id="pn-status">PDFを選ぶと、設定とイメージが表示されます。</p>
@@ -501,10 +515,6 @@
         </div>
         <canvas id="pn-pageCanvas" class="pn-page" aria-label="ページのイメージ"></canvas>
       </div>
-      <div class="toolbar">
-        <button type="button" class="btn-primary" id="pn-save">ページ番号を入れて保存</button>
-        <p class="status" id="pn-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
-      </div>
     </div>
   </section>
 </main>
@@ -526,13 +536,18 @@
   </div>
 </footer>
 
-<script src="common.js?v=3"></script>
+<!-- 機能ボタン（トップメニュー）が画面の上へ外れた時だけ現れる「↑」ボタン。押すとその位置へ戻る（app.js参照） -->
+<button type="button" id="backToTopBtn" class="back-to-top" title="機能のメニューへ戻る" aria-label="トップメニューへ戻る" hidden>
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5"/></svg>
+</button>
+
+<script src="common.js?v=4"></script>
 <script src="redact.js?v=4"></script>
-<script src="hand.js?v=10"></script>
+<script src="hand.js?v=11"></script>
 <script src="pages.js?v=4"></script>
 <script src="meta.js?v=3"></script>
 <script src="shrink.js?v=4"></script>
-<script src="pageno.js?v=7"></script>
-<script src="app.js?v=3"></script>
+<script src="pageno.js?v=8"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>
