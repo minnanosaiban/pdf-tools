@@ -9,6 +9,7 @@
   let pdf = null, pdfBytes = null, baseName = "pdf";
   let items = [];              // { id, page, x, y(0..1・左上), text, font, color, size(pt), jitter, angle, seed }
   let selectedId = null, seq = 0;
+  let fixedPos = null, fcur = 1;   // 「全ページ同じ場所にコメント」：共通の位置 {x,y}（0..1・左上）と、いま入力しているページ
 
   const el = {
     text: $("hw-text"), font: $("hw-font"), color: $("hw-color"), size: $("hw-size"),
@@ -16,6 +17,7 @@
     er: $("hw-er"), erUndo: $("hw-erUndo"),
     count: $("hw-count"), del: $("hw-delete"), clear: $("hw-clear"), save: $("hw-save"),
     saveStatus: $("hw-saveStatus"), status: $("hw-status"), open: $("hw-open"), saveWork: $("hw-saveWork"),
+    fxText: $("hw-fxText"), fxPrev: $("hw-fxPrev"), fxNext: $("hw-fxNext"), fxPage: $("hw-fxPage"), fxCount: $("hw-fxCount"),
   };
   const setStatus = (m, err) => { el.status.textContent = m || ""; el.status.classList.toggle("is-error", !!err); };
   const setSaveStatus = (m, err) => { el.saveStatus.textContent = m || ""; el.saveStatus.classList.toggle("is-error-text", !!err); };
@@ -246,6 +248,13 @@
         ctx.restore();
       }
     }
+    if (fixedPos && el.kind.value === "fixed") {   // コメントを置く共通の位置の目印
+      ctx.save();
+      const mx = fixedPos.x * W, my = fixedPos.y * H, here = p === fcur;
+      ctx.lineWidth = here ? 2 : 1.2; ctx.strokeStyle = here ? "#d33a2c" : "rgba(211,58,44,.45)"; ctx.setLineDash([4, 3]);
+      ctx.strokeRect(mx - 4, my - 4, 52, 28);
+      ctx.restore();
+    }
     if (d.eraserPos && el.kind.value === "eraser") {   // 消しゴムの範囲を示す丸
       ctx.save();
       ctx.beginPath(); ctx.arc(d.eraserPos.x * W, d.eraserPos.y * H, +el.er.value * s, 0, Math.PI * 2);
@@ -282,6 +291,7 @@
     el.del.disabled = selectedId == null;
     el.save.disabled = !pdf || !items.some((i) => !isBlankText(i));
     el.saveWork.disabled = !pdf;
+    fxInfo();
   }
   const isBlankText = (it) => it.type === "text" && !it.text.trim();
   function select(id) {
@@ -292,29 +302,77 @@
     selectedId = id;
     const it = byId(id);
     if (it) {
-      el.kind.value = it.type; syncKind(); el.color.value = it.color; el.jitter.value = it.jitter;
+      el.kind.value = it.fixed ? "fixed" : it.type; syncKind(); el.color.value = it.color; el.jitter.value = it.jitter;
       if (isShape(it)) el.lw.value = it.lw;
       else { el.text.value = it.text; el.font.value = it.font; el.size.value = it.size; el.angle.value = it.angle; }
+      if (it.fixed) { fcur = it.page; syncFixedUI(); }
     }
     updateChrome(); redrawAll();
   }
   function applyControls() {
-    const it = byId(selectedId);
-    if (!it) return;
-    it.color = el.color.value; it.jitter = +el.jitter.value;
-    if (isShape(it)) { it.lw = +el.lw.value; redrawAll(); return; }
-    it.text = el.text.value; it.font = el.font.value;
-    it.size = clampPt(el.size.value, it.size); it.angle = +el.angle.value;
+    const it = byId(selectedId), fixedMode = el.kind.value === "fixed";
+    if (!it && !fixedMode) return;
+    if (it && isShape(it)) { it.color = el.color.value; it.jitter = +el.jitter.value; it.lw = +el.lw.value; redrawAll(); return; }
+    // 「全ページ同じ場所」のコメントは、書体・色・大きさなどをまとめてそろえる
+    const group = fixedMode ? items.filter((i) => i.fixed) : [it];
+    for (const t of group) {
+      t.color = el.color.value; t.jitter = +el.jitter.value;
+      if (!fixedMode) t.text = el.text.value;
+      t.font = el.font.value; t.size = clampPt(el.size.value, t.size); t.angle = +el.angle.value;
+      ensureFont(t);
+    }
     // 入力欄を空にしても要素は消さない（打ち直せるように位置・消しゴム履歴を保持）。空のまま選択を外した時に片付ける。
-    updateChrome(); ensureFont(it); redrawAll();
+    updateChrome(); redrawAll();
   }
+  // ---- 全ページ同じ場所にコメント ----
+  const fixedAt = (p) => items.find((i) => i.fixed && i.page === p);
+  function fxInfo() {
+    const n = pdf ? pdf.numPages : 1;
+    el.fxPage.textContent = `p.${fcur} / ${n}`;
+    el.fxPrev.disabled = !pdf || fcur <= 1; el.fxNext.disabled = !pdf || fcur >= n;
+    el.fxText.disabled = !pdf;
+    el.fxCount.textContent = `入力済み ${items.filter((i) => i.fixed && i.text.trim()).length} / ${n} ページ`;
+  }
+  function syncFixedUI() {
+    fcur = Math.min(pdf ? pdf.numPages : 1, Math.max(1, fcur));
+    const f = fixedAt(fcur);
+    el.fxText.value = f ? f.text : "";
+    fxInfo();
+  }
+  function moveFixed(x, y) {
+    fixedPos = { x, y };
+    for (const i of items) if (i.fixed) { i.x = x; i.y = y; }
+    redrawAll();
+  }
+  function goFixed(p) {
+    fcur = p; syncFixedUI(); redrawAll();
+    const d = viewer.dom[fcur];
+    if (d) window.scrollTo({ top: d.wrap.getBoundingClientRect().top + window.scrollY - $("hw-menu").offsetHeight - 8, behavior: "smooth" });
+  }
+  el.fxText.addEventListener("input", () => {
+    const text = el.fxText.value;
+    let f = fixedAt(fcur);
+    if (f) f.text = text;
+    else if (text.trim()) {
+      if (!fixedPos) fixedPos = { x: 0.08, y: 0.92 };   // 場所を決める前に入力したときの初期位置（下のほう）
+      f = { id: ++seq, page: fcur, type: "text", fixed: true, x: fixedPos.x, y: fixedPos.y, text, font: el.font.value, color: el.color.value,
+        size: clampPt(el.size.value, 24), jitter: +el.jitter.value, angle: +el.angle.value, seed: (Math.random() * 1e9) | 0 };
+      items.push(f);
+    }
+    if (f) ensureFont(f);
+    updateChrome(); redrawAll();
+  });
+  el.fxText.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); goFixed(fcur + 1); } });
+  el.fxPrev.addEventListener("click", () => goFixed(fcur - 1));
+  el.fxNext.addEventListener("click", () => goFixed(fcur + 1));
   for (const k of ["text", "font", "color", "size", "jitter", "angle", "lw"]) {
     el[k].addEventListener("input", applyControls);
   }
   // 「配置するもの」に応じて、関係する設定だけを表示する
   function syncKind() {
     const k = el.kind.value;
-    const on = { text: k === "text", shape: k !== "text" && k !== "eraser", eraser: k === "eraser", draw: k !== "eraser" };
+    const on = { text: k === "text" || k === "fixed", textonly: k === "text", fixed: k === "fixed",
+      shape: k !== "text" && k !== "fixed" && k !== "eraser", eraser: k === "eraser", draw: k !== "eraser" };
     for (const g of Object.keys(on)) {
       document.querySelectorAll(`#panel-hand [data-for-${g}]`).forEach((n) => { n.hidden = !on[g]; });
     }
@@ -323,12 +381,13 @@
   }
   el.kind.addEventListener("change", () => {
     syncKind();
+    if (el.kind.value === "fixed") syncFixedUI();
     const it = byId(selectedId);
     if (it && (el.kind.value === "eraser" || it.type !== el.kind.value && (isShape(it) !== (el.kind.value !== "text")))) select(null);   // 種類を変えたら選択は外す
   });
   syncKind();
-  el.del.onclick = () => { items = items.filter((i) => i.id !== selectedId); selectedId = null; updateChrome(); redrawAll(); };
-  el.clear.onclick = () => { items = []; eraseHistory.length = 0; selectedId = null; updateChrome(); redrawAll(); };
+  el.del.onclick = () => { items = items.filter((i) => i.id !== selectedId); selectedId = null; syncFixedUI(); updateChrome(); redrawAll(); };
+  el.clear.onclick = () => { items = []; eraseHistory.length = 0; selectedId = null; fixedPos = null; syncFixedUI(); updateChrome(); redrawAll(); };
   document.addEventListener("keydown", (e) => {
     if ($("panel-hand").hidden) return;
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
@@ -421,6 +480,12 @@
         o.setPointerCapture(e.pointerId);
         drag = { it, ox: q.x - it.x, oy: q.y - it.y, moved: false };
         if (selectedId !== it.id) select(it.id);
+      } else if (el.kind.value === "fixed") {
+        // 全ページ共通の位置を、クリックした場所に決める（このページを入力中のページにする）
+        const size = clampPt(el.size.value, 24);
+        select(null);
+        fcur = p; moveFixed(clamp01(q.x), clamp01(q.y - (size * 0.6) / (o.height / viewer.scale))); syncFixedUI();
+        setStatus(`全ページ共通の位置を決めました（p.${p} を入力中）。上の欄にこのページのコメントを入力し、「次」で次のページへ進めます。`);
       } else if (el.kind.value !== "text") {
         // 四角・マル：ドラッグで大きさを決める
         o.setPointerCapture(e.pointerId);
@@ -466,8 +531,9 @@
           const lx = dx * Math.cos(a) + dy * Math.sin(a);   // 文字の向きに合わせた横方向の位置
           it.size = clampPt(drag.size0 * Math.max(lx - 4, 1) / (drag.w0 || 1), drag.size0);
           el.size.value = it.size;
+          if (it.fixed) for (const f of items) if (f.fixed) f.size = it.size;   // 全ページ同じ大きさに
         }
-        redraw(p);
+        if (drag.it.fixed) redrawAll(); else redraw(p);
       } else if (drag && drag.create) {
         const it = drag.it;
         it.fx = q.x < drag.sx; it.fy = q.y < drag.sy;   // 矢印の向き（始点がどの角か）
@@ -477,7 +543,7 @@
       } else if (drag) {
         drag.moved = true;
         drag.it.x = clamp01(q.x - drag.ox); drag.it.y = clamp01(q.y - drag.oy);
-        redraw(p);
+        if (drag.it.fixed) moveFixed(drag.it.x, drag.it.y); else redraw(p);   // 共通位置のコメントは、全ページ一緒に動く
       } else {
         const hp = hitHandle(q);
         o.style.cursor = hp ? (hp.cx === hp.cy ? "nwse-resize" : "nesw-resize") : hit(q) ? "move" : "text";
@@ -530,7 +596,7 @@
       if (!it.page) continue;
       if (r.type === "text") {
         Object.assign(it, { text: typeof r.text === "string" ? r.text.slice(0, 2000) : "", font: FONTS.includes(r.font) ? r.font : FONTS[0],
-          size: clampPt(r.size, 24), angle: fin(r.angle, -30, 30, 0) });
+          size: clampPt(r.size, 24), angle: fin(r.angle, -30, 30, 0), fixed: !!r.fixed });
       } else {
         Object.assign(it, { w: fin(r.w, 0, 1, 0), h: fin(r.h, 0, 1, 0), lw: fin(r.lw, 0.25, 12, 2.5), fx: !!r.fx, fy: !!r.fy });
       }
@@ -553,7 +619,7 @@
       pdfBytes = buf.slice();
       const doc = await pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise;
       pdf = doc;
-      items = []; eraseHistory.length = 0; selectedId = null;
+      items = []; eraseHistory.length = 0; selectedId = null; fixedPos = null; fcur = 1;
       await viewer.load(doc);
       // 画面のpx/ptを求めるため、各ページのpt幅を記録（scale 1 の幅）
       for (let p = 1; p <= doc.numPages; p++) {
@@ -565,6 +631,8 @@
       if (restore) {
         items = sanitizeItems(restore.state.items, doc.numPages);
         for (const it of items) if (it.type === "text") ensureFont(it);
+        const f0 = items.find((i) => i.fixed);
+        if (f0) { fixedPos = { x: f0.x, y: f0.y }; for (const i of items) if (i.fixed) { i.x = f0.x; i.y = f0.y; } }
         redrawAll();
         setStatus(`作業ファイルから「${fileName}」（${pdf.numPages}ページ、要素${items.length}件）を開きました。続きから編集できます。`);
       } else {
@@ -574,7 +642,7 @@
       pdf = null; items = []; eraseHistory.length = 0; selectedId = null; viewer.reset();   // 古いページ表示を残さない
       setStatus(/password|encrypt/i.test(String(e && e.message || e)) ? "パスワード保護されたPDFには対応していません。" : "PDFを読み込めませんでした。", true);
     }
-    updateChrome();
+    syncFixedUI(); updateChrome();
   }
 
   // ---- 作業ファイル（.json）の保存・読み込み ----

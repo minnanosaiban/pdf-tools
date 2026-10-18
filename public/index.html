@@ -181,7 +181,7 @@
   <!-- ============ 手書き風文字追加 ============ -->
   <section class="tool-panel" id="panel-hand" data-panel="hand" hidden>
     <h2 class="panel-title">手書き風文字追加</h2>
-    <p class="panel-lead">文字はページをクリック、四角い囲み・マルはページ上をドラッグして、手書き風に入れられます。置いたものは線や文字をドラッグして移動、四隅のつまみ（文字は右下のつまみ）をドラッグして大きさを変更、文字の大きさは「大きさ（pt）」でも指定できます（Deleteで削除）。消しゴムでなぞると、手書きの文字・線を部分的に消せます。</p>
+    <p class="panel-lead">文字はページをクリック、四角い囲み・マルはページ上をドラッグして、手書き風に入れられます。置いたものは線や文字をドラッグして移動、四隅のつまみ（文字は右下のつまみ）をドラッグして大きさを変更、文字の大きさは「大きさ（pt）」でも指定できます（Deleteで削除）。消しゴムでなぞると、手書きの文字・線を部分的に消せます。「全ページ同じ場所にコメント」を選ぶと、ページごとに違う文字を、全ページ共通の位置へ入れていけます。</p>
 
     <div class="card toolbar">
       <label class="btn-outline filebtn" id="hw-drop" style="cursor:pointer">
@@ -206,6 +206,7 @@
         <label for="hw-kind">配置するもの</label>
         <select id="hw-kind" class="text-input">
           <option value="text">文字（クリックで配置）</option>
+          <option value="fixed">全ページ同じ場所にコメント（ページごとに入力）</option>
           <option value="rect">四角い囲み（ドラッグ）</option>
           <option value="ellipse">マル（ドラッグ）</option>
           <option value="braceL">波かっこ「{」（ドラッグ）</option>
@@ -214,9 +215,20 @@
           <option value="eraser">消しゴム（なぞって消す）</option>
         </select>
       </div>
-      <div class="field" data-for-text style="flex:1 1 240px;min-width:220px">
+      <div class="field" data-for-textonly style="flex:1 1 240px;min-width:220px">
         <label for="hw-text">追加する文字（改行可）</label>
         <textarea id="hw-text" class="text-input" rows="2" placeholder="例: 確認済み"></textarea>
+      </div>
+      <div class="field" data-for-fixed hidden style="flex:1 1 300px;min-width:240px">
+        <label for="hw-fxText">このページのコメント（Enterで改行、Ctrl+Enterで次のページへ）</label>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:6px">
+          <button type="button" class="btn-outline" id="hw-fxPrev">&larr; 前</button>
+          <span class="badge" id="hw-fxPage" aria-live="polite">p.1 / 1</span>
+          <button type="button" class="btn-outline" id="hw-fxNext">次 &rarr;</button>
+          <span class="cap" id="hw-fxCount"></span>
+        </div>
+        <textarea id="hw-fxText" class="text-input" rows="2" placeholder="例: 10月1日（1-1）"></textarea>
+        <p class="cap" style="margin:4px 0 0">※置く場所は、ページ上をクリックして決めます（全ページ共通）。コメントをドラッグすると、全ページ一緒に動きます。空欄のページには入れません。</p>
       </div>
       <div class="field" data-for-text>
         <label for="hw-font">書体</label>
@@ -420,7 +432,7 @@
   <!-- ============ ページ番号 ============ -->
   <section class="tool-panel" id="panel-pageno" data-panel="pageno" hidden>
     <h2 class="panel-title">ページ番号</h2>
-    <p class="panel-lead">各ページにページ番号を入れます。位置（右上・右下・左上など）と書式（「1」「1頁」「1ページ」「1 / 全体」など）を選べ、書体は標準のほか手書き風も選べます。番号は画像として重ねるため、PDF上では選択・検索できません。</p>
+    <p class="panel-lead">各ページにページ番号を入れます。位置（右上・右下・左上など）と書式（「1」「1頁」「1ページ」「1 / 全体」など）を選べ、書体は標準のほか手書き風も選べます。番号を振ったあとは、ページを見ながら「★」「要確認」などの目印を番号の隣へ手入力で足せます。番号は画像として重ねるため、PDF上では選択・検索できません。同じ場所へ好きなコメントを入れたいときは、「手書き風文字追加」の「全ページ同じ場所にコメント」をお使いください。</p>
 
     <div class="card toolbar">
       <label class="btn-outline filebtn" id="pn-drop" style="cursor:pointer">
@@ -443,8 +455,8 @@
     <p class="status" id="pn-status">PDFを選ぶと、設定とイメージが表示されます。</p>
 
     <div class="card" id="pn-area" hidden>
-      <div id="pn-pager" class="pn-pager" hidden>
-        <div class="field-label">ページを見ながら、1ページずつ入れる文字を入力します（空欄のページには入れません）</div>
+      <div id="pn-pager" class="pn-pager">
+        <div class="field-label">番号が付いた仕上がりを見ながら、目印を足せます（任意。空欄のページには足しません）</div>
         <div class="pn-pager-body">
           <div class="pn-pager-ctl">
             <div class="pn-doc" id="pn-docName" title="入力中のPDF"></div>
@@ -455,11 +467,19 @@
             </div>
             <span class="cap" id="pn-filled"></span>
             <div class="field-group" style="margin-bottom:8px">
-              <label class="field-label" for="pn-pageText">このページに入れる文字（Enterで改行、Ctrl+Enterで次のページへ）</label>
-              <textarea id="pn-pageText" class="text-input" rows="2" placeholder="例: 10月1日（1-1）"></textarea>
+              <div class="field-label"><label for="pn-markPos">目印を入れる場所</label></div>
+              <select id="pn-markPos" class="text-input">
+                <option value="after">番号のあと（例: 3 ★）</option>
+                <option value="before">番号の前（例: ★ 3）</option>
+                <option value="below">番号の下（改行して入れる）</option>
+              </select>
+            </div>
+            <div class="field-group" style="margin-bottom:8px">
+              <label class="field-label" for="pn-pageText">このページの目印（Enterで改行、Ctrl+Enterで次のページへ）</label>
+              <textarea id="pn-pageText" class="text-input" rows="2" placeholder="例: ★　／　要確認"></textarea>
             </div>
           </div>
-          <canvas id="pn-pageCanvas" class="pn-page" aria-label="ページのイメージ"></canvas>
+          <canvas id="pn-pageCanvas" class="pn-page" aria-label="番号と目印を入れたページのイメージ"></canvas>
         </div>
       </div>
       <div class="sh-layout">
@@ -473,7 +493,6 @@
               <option value="p">p.1</option>
               <option value="dash">- 1 -</option>
               <option value="slash">1 / 全ページ数</option>
-              <option value="custom">手入力（ページを見ながら1ページずつ）</option>
             </select>
           </div>
           <div class="field-group">
@@ -493,30 +512,26 @@
         </div>
         <div>
           <div class="field-group"><div class="field-label"><label for="pn-margin">端からの余白（mm）</label></div><input id="pn-margin" type="number" class="text-input" min="0" max="100" step="1" value="10" style="width:90px"></div>
-          <div class="field-group" id="pn-fromBox"><div class="field-label"><label for="pn-from">何ページ目から付けるか</label></div><input id="pn-from" type="number" class="text-input" min="1" step="1" value="1" style="width:90px"></div>
-          <div class="field-group" id="pn-modeBox">
+          <div class="field-group"><div class="field-label"><label for="pn-from">何ページ目から付けるか</label></div><input id="pn-from" type="number" class="text-input" min="1" step="1" value="1" style="width:90px"></div>
+          <div class="field-group">
             <div class="field-label"><label for="pn-mode">番号の付け方</label></div>
             <select id="pn-mode" class="text-input">
               <option value="serial">連番（1, 2, 3…）</option>
               <option value="chapter">章-ページ（1-1, 1-2, 2-1…）</option>
             </select>
           </div>
-          <div class="field-group" id="pn-firstBox"><div class="field-label"><label for="pn-first" id="pn-firstLabel">最初の番号</label></div><input id="pn-first" type="number" class="text-input" min="0" step="1" value="1" style="width:90px"></div>
+          <div class="field-group"><div class="field-label"><label for="pn-first" id="pn-firstLabel">最初の番号</label></div><input id="pn-first" type="number" class="text-input" min="0" step="1" value="1" style="width:90px"></div>
           <div class="field-group" id="pn-chaptersBox" hidden>
             <div class="field-label"><label for="pn-chapters">各章の最初のページ</label></div>
             <input id="pn-chapters" type="text" class="text-input" placeholder="例: 1, 4, 9" style="width:160px">
             <p class="field-hint-plain">例：「1, 4, 9」なら、1〜3ページが1-1・1-2・1-3、4〜8ページが2-1…、9ページから3-1…になります。</p>
           </div>
-          <p class="cap" id="pn-skipNote">※表紙を飛ばしたいときは「何ページ目から」を2にします。</p>
+          <p class="cap">※表紙を飛ばしたいときは「何ページ目から」を2にします（表紙にも目印は足せます）。</p>
         </div>
         <div>
           <div class="field-group">
             <div class="field-label" id="pn-posLabel">置く位置</div>
             <div class="sh-pos" role="radiogroup" aria-labelledby="pn-posLabel" id="pn-pos"></div>
-          </div>
-          <div class="field-group" id="pn-previewBox">
-            <div class="field-label">イメージ（最初に付くページ）</div>
-            <canvas id="pn-preview" style="border:1px solid var(--tx-border);box-shadow:var(--tx-shadow-sm);background:#fff;max-width:100%" aria-label="ページ番号の位置のイメージ"></canvas>
           </div>
         </div>
       </div>

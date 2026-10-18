@@ -1,6 +1,7 @@
 "use strict";
 
 // ページ番号：各ページに番号（1／1頁／1ページ 等）を、指定の位置へ重ねる。
+// 番号を振ったあと、ページを見ながら「目印」（★・要確認 など）を番号の隣へ手入力で足すこともできる。
 // 「頁」「ページ」はPDF標準フォントに無いため、文字は画像にして重ねる（手書き風書体もこの方式）。
 (() => {
   const { PDFDocument, degrees } = PDFLib;
@@ -17,24 +18,24 @@
   let pdfBytes = null, baseName = "pdf", pageCount = 1, pageW = 595, pageH = 842, pos = POS[5];
 
   const el = {};
-  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "angle", "jitterNote", "margin", "from", "first", "mode", "chapters", "modeBox", "fromBox", "skipNote", "previewBox", "firstBox", "firstLabel", "chaptersBox", "pager", "prev", "next", "pageInfo", "docName", "filled", "pageText", "pageCanvas", "open", "saveWork", "pos", "preview", "save", "saveStatus"]) el[k] = $("pn-" + k);
+  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "angle", "jitterNote", "margin", "from", "first", "mode", "chapters", "firstLabel", "chaptersBox", "markPos", "prev", "next", "pageInfo", "docName", "filled", "pageText", "pageCanvas", "open", "saveWork", "pos", "save", "saveStatus"]) el[k] = $("pn-" + k);
   const setStatus = (m, err) => { el.status.textContent = m || ""; el.status.classList.toggle("is-error", !!err); };
   const setSaveStatus = (m, err) => { el.saveStatus.textContent = m || ""; el.saveStatus.classList.toggle("is-error-text", !!err); };
   const num = (e, lo, hi, def) => Math.min(hi, Math.max(lo, Math.round(+e.value) || def));
   const opts = () => ({
     format: el.format.value, font: el.font.value, size: num(el.size, 6, 72, 12), color: el.color.value, jitter: +el.jitter.value, angle: +el.angle.value || 0,
-    margin: Math.min(100, Math.max(0, +el.margin.value || 0)) * MM, from: el.format.value === "custom" ? 1 : num(el.from, 1, pageCount, 1), first: Math.max(0, Math.round(+el.first.value) || 0),
-    texts: pageTexts.slice(),
+    margin: Math.min(100, Math.max(0, +el.margin.value || 0)) * MM, from: num(el.from, 1, pageCount, 1), first: Math.max(0, Math.round(+el.first.value) || 0),
+    texts: pageTexts.slice(), markPos: el.markPos.value,
     mode: el.mode.value, chapters: parseList(el.chapters.value).map(Number).filter((n) => Number.isInteger(n) && n >= 1),
   });
-  let pageTexts = [], cur = 1, pnPdf = null;   // 手入力：ページごとの文字、いま見ているページ、表示用のpdf.js文書
+  let pageTexts = [], cur = 1, pnPdf = null;   // 目印：ページごとの文字、いま見ているページ、表示用のpdf.js文書
   const parseList = (s) => s.split(/[\n,、，]+/).map((x) => x.trim()).filter(Boolean);
 
   POS.forEach((p, i) => {
     const l = document.createElement("label");
     l.innerHTML = `<input type="radio" name="pn-pos"${i === 5 ? " checked" : ""}><span></span>`;
     l.querySelector("span").textContent = p[0];
-    l.querySelector("input").addEventListener("change", () => { pos = p; drawPreview(); });
+    l.querySelector("input").addEventListener("change", () => { pos = p; refresh(); });
     el.pos.appendChild(l);
   });
 
@@ -94,43 +95,30 @@
     }
     return String(o.first + (i - o.from));
   }
+  // ページ i に入れる文字。番号（付けるページだけ）に、手入力の目印を番号の前／後／下へ添える
   const labelText = (o, i, total) => {
-    if (o.format === "custom") return (o.texts[i - 1] || "").replace(/^\s+|\s+$/g, "");   // 手入力：自動の番号は使わない
-    const n = baseLabel(o, i), t = baseLabel(o, total) || n;
-    return n ? FORMATS[o.format](n, t) : "";
+    const n = i >= o.from ? baseLabel(o, i) : "", t = baseLabel(o, total) || n;
+    const num = n ? FORMATS[o.format](n, t) : "", mark = (o.texts[i - 1] || "").replace(/^\s+|\s+$/g, "");
+    if (!mark) return num;
+    if (!num) return mark;
+    return o.markPos === "before" ? `${mark} ${num}` : o.markPos === "below" ? `${num}\n${mark}` : `${num} ${mark}`;
   };
 
-  let previewGen = 0;
-  async function drawPreview() {
-    if (!pdfBytes) return;
-    const gen = ++previewGen, o = opts(), W = 220, k = W / pageW, c = el.preview;
-    const text = labelText(o, o.from, pageCount) || "（番号なし）";
-    await ensureFont(o, text);
-    if (gen !== previewGen) return;
-    c.width = W; c.height = Math.round(pageH * k);
-    const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
-    ctx.fillStyle = "#eceef1";   // 本文のつもりの線
-    for (let y = 0.12; y < 0.85; y += 0.05) ctx.fillRect(c.width * 0.14, c.height * y, c.width * 0.72, 3);
-    const lab = renderLabel(text, o, k * 3, 1), { ox, oy } = place(pageW, pageH, lab, o);
-    ctx.drawImage(lab.canvas, ox * k, c.height - (oy + lab.h) * k, lab.w * k, lab.h * k);
-  }
-  for (const k of ["format", "font", "size", "color", "jitter", "angle", "margin", "from", "first", "mode", "chapters"]) {
+  for (const k of ["format", "font", "size", "color", "jitter", "angle", "margin", "from", "first", "mode", "chapters", "markPos"]) {
     el[k].addEventListener("input", refresh);
     el[k].addEventListener("change", refresh);
   }
   el.font.addEventListener("change", () => { el.jitter.disabled = el.font.value === "std"; el.jitterNote.hidden = el.font.value !== "std"; });
   el.jitter.disabled = true;
   function syncMode() {
-    const m = el.mode.value, custom = el.format.value === "custom";
-    el.modeBox.hidden = el.fromBox.hidden = el.firstBox.hidden = el.skipNote.hidden = custom;
-    el.chaptersBox.hidden = custom || m !== "chapter"; el.previewBox.hidden = custom; el.pager.hidden = !custom;
+    const m = el.mode.value;
+    el.chaptersBox.hidden = m !== "chapter";
     el.firstLabel.textContent = m === "chapter" ? "最初の章の番号" : "最初の番号";
   }
   el.mode.addEventListener("change", syncMode);
-  el.format.addEventListener("change", syncMode);
-  function refresh() { drawPreview(); if (el.format.value === "custom") { if (baseCanvas) drawPager(); else showPage(cur); } }
+  function refresh() { if (baseCanvas) drawPager(); else showPage(cur); }
 
-  // ---- 手入力：ページを見ながら1ページずつ入力 ----
+  // ---- 目印：番号が付いた仕上がりを見ながら、1ページずつ入力 ----
   let pagerGen = 0, baseCanvas = null, baseVp = null;
   async function showPage(p) {
     cur = Math.min(pageCount, Math.max(1, p));
@@ -149,7 +137,7 @@
   }
   async function drawPager() {
     if (!baseCanvas) return;
-    const o = opts(), text = labelText(o, cur, pageCount), gen = pagerGen, c = el.pageCanvas;
+    const o = opts(), text = labelText(o, cur, pageCount), gen = pagerGen, c = el.pageCanvas;   // 番号＋目印の仕上がり
     if (text) await ensureFont(o, text);
     if (gen !== pagerGen) return;
     c.width = baseCanvas.width; c.height = baseCanvas.height;
@@ -158,7 +146,7 @@
       const lab = renderLabel(text, o, baseVp.s * 3, cur), { ox, oy } = place(baseVp.vw, baseVp.vh, lab, o);
       ctx.drawImage(lab.canvas, ox * baseVp.s, c.height - (oy + lab.h) * baseVp.s, lab.w * baseVp.s, lab.h * baseVp.s);
     }
-    el.filled.textContent = `入力済み ${pageTexts.filter((t) => t && t.trim()).length} / ${pageCount} ページ`;
+    el.filled.textContent = `目印あり ${pageTexts.filter((t) => t && t.trim()).length} / ${pageCount} ページ`;
   }
   el.pageText.addEventListener("input", () => { pageTexts[cur - 1] = el.pageText.value; drawPager(); });
   el.pageText.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); showPage(cur + 1); } });   // Enterは改行。Ctrl+Enterで次のページ
@@ -169,19 +157,19 @@
   function applyState(st) {
     const sel = (e, v) => { if (typeof v === "string" && [...e.options].some((o) => o.value === v)) e.value = v; };
     const num2 = (e, v, lo, hi) => { v = +v; if (Number.isFinite(v)) e.value = Math.min(hi, Math.max(lo, v)); };
-    sel(el.format, st.format); sel(el.font, st.font); sel(el.mode, st.mode);
+    sel(el.format, st.format); sel(el.font, st.font); sel(el.mode, st.mode); sel(el.markPos, st.markPos);
     num2(el.size, st.size, 6, 72); num2(el.jitter, st.jitter, 0, 100); num2(el.angle, st.angle, -15, 15);
     num2(el.margin, st.margin, 0, 100); num2(el.from, st.from, 1, pageCount); num2(el.first, st.first, 0, 9999);
     if (typeof st.color === "string" && /^#[0-9a-f]{6}$/i.test(st.color)) el.color.value = st.color;
     el.chapters.value = typeof st.chapters === "string" ? st.chapters.slice(0, 200) : "";
     const pi = Number.isInteger(st.pos) && POS[st.pos] ? st.pos : 5;
     pos = POS[pi]; el.pos.querySelectorAll("input")[pi].checked = true;
-    pageTexts = Array.isArray(st.texts) ? st.texts.slice(0, pageCount).map((t) => (typeof t === "string" ? t.slice(0, 500) : "")) : [];
+    pageTexts = Array.isArray(st.texts) && st.format !== "custom" ? st.texts.slice(0, pageCount).map((t) => (typeof t === "string" ? t.slice(0, 500) : "")) : [];
     el.jitter.disabled = el.font.value === "std"; el.jitterNote.hidden = el.font.value !== "std";
   }
   const gatherState = () => ({ format: el.format.value, font: el.font.value, size: +el.size.value, color: el.color.value, jitter: +el.jitter.value,
     angle: +el.angle.value, margin: +el.margin.value, from: +el.from.value, first: +el.first.value, mode: el.mode.value,
-    chapters: el.chapters.value, pos: POS.indexOf(pos), texts: pageTexts });
+    chapters: el.chapters.value, pos: POS.indexOf(pos), texts: pageTexts, markPos: el.markPos.value });
 
   // restore があれば、それ（作業ファイルの中のPDFと設定）から読み込む
   async function loadFile(file, restore) {
@@ -199,9 +187,9 @@
       pageTexts = []; baseCanvas = null;
       if (restore) applyState(restore.state);
       el.filename.hidden = false; el.filename.textContent = `${fileName}（${pageCount}ページ）`;
-      el.area.hidden = false; syncMode(); drawPreview(); if (el.format.value === "custom") showPage(1);
+      el.area.hidden = false; syncMode(); showPage(1);
       el.save.disabled = el.saveWork.disabled = false;
-      setStatus(restore ? `作業ファイルから「${fileName}」を開きました。続きから編集できます。` : "書式・位置などを選んで「PDFを保存」を押してください。");
+      setStatus(restore ? `作業ファイルから「${fileName}」を開きました。続きから編集できます。${restore.state.format === "custom" ? "（旧版の「手入力」の文字は引き継げません。「手書き風文字追加」の「全ページ同じ場所にコメント」をお使いください）" : ""}` : "書式・位置などを選んで「PDFを保存」を押してください。");
     } catch (e) {
       pdfBytes = null; el.save.disabled = el.saveWork.disabled = true;
       setStatus(/encrypt|password/i.test(String(e && e.message || e)) ? "パスワード保護されたPDFには対応していません。" : "PDFを読み込めませんでした。", true);
@@ -228,18 +216,17 @@
 
   el.save.addEventListener("click", async () => {
     if (!pdfBytes) return;
-    if (el.format.value === "custom" && !pageTexts.some((t) => t && t.trim())) { setSaveStatus("どのページにも文字が入力されていません。", true); return; }
     const target = await pickSaveTarget(`${baseName}_pageno.pdf`);
     if (target === false) { setSaveStatus("保存をキャンセルしました。"); return; }
     el.save.disabled = true; setSaveStatus("書き込み中…");
     try {
       const o = opts(), doc = await PDFDocument.load(pdfBytes, { updateMetadata: false }), pages = doc.getPages();
-      await ensureFont(o, "0123456789頁ページp./- ");
+      await ensureFont(o, "0123456789頁ページp./- " + o.texts.join(""));
       const seedBase = (Math.random() * 1e9) | 0;
       let numbered = 0;
-      for (let i = o.from; i <= pages.length; i++) {
+      for (let i = 1; i <= pages.length; i++) {
         const text = labelText(o, i, pages.length);
-        if (!text) continue;   // 手入力で空欄のページには付けない
+        if (!text) continue;   // 番号を付けない（「何ページ目から」より前）で目印もないページ
         numbered++;
         const pg = pages[i - 1], { x: cx0, y: cy0, width: pw, height: ph } = pg.getCropBox();
         const R = ((pg.getRotation().angle % 360) + 360) % 360;
@@ -254,7 +241,7 @@
         setSaveStatus(`書き込み中… ${i}/${pages.length}ページ`);
       }
       await saveBlob(new Blob([await doc.save()], { type: "application/pdf" }), `${baseName}_pageno.pdf`, target);
-      setSaveStatus(`保存しました（${numbered}ページに番号を入れました、${pos[0]}）。${target ? "" : "ダウンロードを開始しました。"}`);
+      setSaveStatus(`保存しました（${numbered}ページに番号・目印を入れました、${pos[0]}）。${target ? "" : "ダウンロードを開始しました。"}`);
     } catch (e) {
       setSaveStatus("保存に失敗しました: " + (e && e.message || e), true);
     } finally { el.save.disabled = false; }
