@@ -9,19 +9,28 @@
   const BIG = 1e6;   // どんな座標系・原点のページでも覆えるよう、ページよりはるかに大きい四角にする（描画はページ枠で切り取られる）
 
   const el = {};
-  for (const k of ["file", "filename", "reset", "status", "area", "preview", "info", "save", "saveStatus"]) el[k] = $("gr-" + k);
+  for (const k of ["file", "filename", "reset", "status", "area", "preview", "info", "save", "saveStatus", "level"]) el[k] = $("gr-" + k);
   const setStatus = (m, err) => { el.status.textContent = m || ""; el.status.classList.toggle("is-error", !!err); };
   const setSaveStatus = (m, err) => { el.saveStatus.textContent = m || ""; el.saveStatus.classList.toggle("is-error-text", !!err); };
 
-  let outBytes = null, baseName = "pdf", gen = 0, previewDoc = null;
+  let outBytes = null, srcBytes = null, baseName = "pdf", gen = 0, previewDoc = null;
 
-  async function makeGray(buf) {
+  // level: 0=標準、以降は少しずつ濃く（暗い色をより暗くする。白は白のまま）
+  const BURN = [null, 0.8, 0.6];
+  async function makeGray(buf, level) {
     const doc = await PDFDocument.load(buf, { updateMetadata: false });
     // pdf-libのdrawRectangleは彩度ブレンドを選べないので、描画命令を直接足す
-    const gs = doc.context.register(doc.context.obj({ Type: "ExtGState", BM: "Saturation", ca: 1, CA: 1 }));
+    const ext = (bm) => doc.context.register(doc.context.obj({ Type: "ExtGState", BM: bm, ca: 1, CA: 1 }));
+    const gsSat = ext("Saturation"), gsBurn = ext("ColorBurn");
+    const cover = () => rectangle(-BIG, -BIG, BIG * 2, BIG * 2);
     for (const pg of doc.getPages()) {
-      const key = pg.node.newExtGState("GSgray", gs);
-      pg.pushOperators(pushGraphicsState(), setGraphicsState(key), setFillingGrayscaleColor(0.5), rectangle(-BIG, -BIG, BIG * 2, BIG * 2), fill(), popGraphicsState());
+      // 1) 元の内容の「下」に白を敷く。下地が透明のままだと、彩度ブレンドの相手がなく、重ねた灰色がそのまま出てしまう（白がグレーになる）
+      const white = doc.context.register(doc.context.contentStream([pushGraphicsState(), setFillingGrayscaleColor(1), cover(), fill(), popGraphicsState()]));
+      // 2) 元の内容の「上」に、彩度を0にする重ね（色相・明るさは保つ）。必要なら濃くする重ねも足す
+      const ops = [pushGraphicsState(), setGraphicsState(pg.node.newExtGState("GSsat", gsSat)), setFillingGrayscaleColor(0.5), cover(), fill(), popGraphicsState()];
+      if (BURN[level]) ops.push(pushGraphicsState(), setGraphicsState(pg.node.newExtGState("GSburn", gsBurn)), setFillingGrayscaleColor(BURN[level]), cover(), fill(), popGraphicsState());
+      const top = doc.context.register(doc.context.contentStream(ops));
+      pg.node.wrapContentStreams(white, top);
     }
     return await doc.save();
   }
@@ -46,7 +55,8 @@
     setSaveStatus(""); el.area.hidden = true; el.save.disabled = true; outBytes = null; setStatus("読み込み中…");
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
-      const bytes = await makeGray(buf);
+      srcBytes = buf;
+      const bytes = await makeGray(buf, +el.level.value);
       if (g !== gen) return;
       outBytes = bytes; baseName = file.name.replace(/\.pdf$/i, "") || "pdf";
       const n = (await PDFDocument.load(buf, { updateMetadata: false })).getPageCount();
@@ -66,8 +76,20 @@
   el.file.addEventListener("change", () => { if (el.file.files[0]) loadFile(el.file.files[0]); el.file.value = ""; });
   wireDrop($("gr-drop"), (fs) => loadFile(fs[0]));
 
+  // 濃さを変えたら、作り直してプレビューを更新する
+  el.level.addEventListener("change", async () => {
+    if (!srcBytes) return;
+    const g = ++gen; el.save.disabled = true; outBytes = null; setSaveStatus("");
+    try {
+      const bytes = await makeGray(srcBytes, +el.level.value);
+      if (g !== gen) return;
+      outBytes = bytes; await drawPreview(bytes, g);
+      if (g === gen) el.save.disabled = false;
+    } catch (e) { if (g === gen) setStatus("白黒化に失敗しました。", true); }
+  });
+
   el.reset.addEventListener("click", () => {
-    gen++; outBytes = null;
+    gen++; outBytes = null; srcBytes = null;
     if (previewDoc) { const old = previewDoc; previewDoc = null; Promise.resolve(old.destroy()).catch(() => {}); }
     el.area.hidden = true; el.filename.hidden = true; el.reset.hidden = true; el.save.disabled = true;
     setSaveStatus(""); setStatus("PDFを選ぶと、白黒にしたイメージが表示されます。");

@@ -575,6 +575,15 @@
 
     <div class="card" id="gr-area" hidden>
       <p class="cap" id="gr-info"></p>
+      <div class="field-group">
+        <div class="field-label"><label for="gr-level">濃さ</label></div>
+        <select id="gr-level" class="text-input" style="width:auto">
+          <option value="0">標準（明るさを保つ）</option>
+          <option value="1">やや濃く（オレンジ・黄色などを読みやすく）</option>
+          <option value="2">濃く</option>
+        </select>
+        <p class="field-hint-plain">※赤・オレンジ・黄色は、白黒にすると明るい灰色になり、薄く見えます。薄いときは濃くしてください（白は白のまま、暗い色がより暗くなります）。</p>
+      </div>
       <canvas id="gr-preview" style="border:1px solid var(--tx-border);box-shadow:var(--tx-shadow-sm);background:#fff;max-width:100%" aria-label="白黒にしたページのイメージ"></canvas>
       <p class="cap">※各ページの上に、色の濃さ（彩度）だけを消す透明な重ねを足す方式です。見た目は白黒ですが、元の色の指定はPDFの中に残ります。対応していない古いビューアでは、色が付いたまま表示されることがあります。</p>
     </div>
@@ -610,7 +619,7 @@
 <script src="meta.js?v=4"></script>
 <script src="shrink.js?v=5"></script>
 <script src="pageno.js?v=10"></script>
-<script src="gray.js?v=2"></script>
+<script src="gray.js?v=3"></script>
 <script src="app.js?v=5"></script>
 </body>
 </html>
