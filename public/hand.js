@@ -292,6 +292,7 @@
     el.save.disabled = !pdf || !items.some((i) => !isBlankText(i));
     el.saveWork.disabled = !pdf;
     fxInfo();
+    $("hw-reset").hidden = !pdf;
   }
   const isBlankText = (it) => it.type === "text" && !it.text.trim();
   function select(id) {
@@ -644,6 +645,14 @@
     }
     syncFixedUI(); updateChrome();
   }
+
+  $("hw-reset").onclick = () => {
+    if (items.some((i) => !isBlankText(i)) && !confirm("保存していない手書きは破棄されます。PDFを閉じてクリアしますか？（残したいときは先に「ファイルを保存」してください）")) return;
+    pdf = null; pdfBytes = null; items = []; eraseHistory.length = 0; selectedId = null; fixedPos = null; fcur = 1;
+    viewer.reset();
+    setStatus("PDFを読み込むと、全ページがここに縦に並びます。"); setSaveStatus("");
+    syncFixedUI(); updateChrome();
+  };
 
   // ---- 作業ファイル（.json）の保存・読み込み ----
   el.open.onchange = async () => {

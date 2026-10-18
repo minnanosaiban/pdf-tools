@@ -1,6 +1,8 @@
 "use strict";
 
 // 結合・分割・回転（旧 pdf-merge に、ページ回転・選択抽出・分割を追加）。
+// 「手書き風文字追加」の作業ファイル（.json）も読み込める。手書きの文字・線はページに付いたまま、
+// 並べ替え・削除・結合・分割しても、作業ファイル（.json）で書き出せば「手書き風文字追加」で引き続き編集できる。
 (() => {
   const { PDFDocument, degrees } = PDFLib;
   const THUMB = 140;   // サムネイル最大サイズ(CSS px)
@@ -11,7 +13,8 @@
   const mergeBtn = $("pg-merge"), extractBtn = $("pg-extract"), splitBtn = $("pg-split");
 
   const sources = new Map();    // sourceId -> { name, bytes }
-  const pagesById = new Map();  // pageId -> { sourceId, pageIndex, rot(0/90/180/270), jsPage(pdf.js), card }
+  const pagesById = new Map();  // pageId -> { sourceId, pageIndex, rot(0/90/180/270), jsPage(pdf.js), card, items(手書きの要素。作業ファイル由来のみ) }
+  const asWork = $("pg-asWork");
   let sourceSeq = 0, pageSeq = 0, loading = false;
 
   const setStatus = (t, err) => { statusEl.textContent = t || ""; statusEl.classList.toggle("is-error", !!err); };
@@ -25,6 +28,8 @@
     countEl.textContent = `${n}ページ / ${sources.size}ファイル` + (sel ? `（${sel}ページ選択中）` : "");
     mergeBtn.disabled = splitBtn.disabled = n === 0;
     extractBtn.disabled = sel === 0;
+    const hw = handCount();
+    $("pg-workNote").textContent = hw ? `手書き風文字追加の作業ファイルを読み込み済み（手書きの要素${hw}件）。「作業ファイル（.json）で保存」にチェックすると、手書きを編集できる形のまま結合・分割できます。チェックなしのPDFには手書きは入りません。` : "";
     if (!loading) {
       setStatus(n
         ? `${n}ページ（${sources.size}ファイル）読み込み済み。ドラッグで並べ替え、×で削除、↺↻で回転できます。`
@@ -32,16 +37,18 @@
     }
   }
 
+  const handCount = () => { let c = 0; for (const i of pagesById.values()) c += i.items ? i.items.length : 0; return c; };
+
   // ---- 追加 ----
   async function addFiles(fileList) {
-    const files = Array.from(fileList).filter((f) => /\.pdf$/i.test(f.name) || f.type === "application/pdf");
+    const files = Array.from(fileList).filter((f) => /\.(pdf|json)$/i.test(f.name) || f.type === "application/pdf" || f.type === "application/json");
     if (!files.length) return;
     loading = true;
     const failed = [];
     for (const file of files) {
       setStatus(`「${file.name}」を読み込み中…`);
       try { await addOne(file); }
-      catch (e) { failed.push(file.name + (/password|encrypt/i.test(String(e && e.message || e)) ? "（パスワード保護）" : "")); }
+      catch (e) { failed.push(file.name + (/password|encrypt/i.test(String(e && e.message || e)) ? "（パスワード保護）" : /作業ファイル|PDFツール|対応していない/.test(String(e && e.message)) ? `（${e.message}）` : "")); }
     }
     loading = false;
     updateChrome();
@@ -49,16 +56,23 @@
   }
 
   async function addOne(file) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
+    let bytes, name = file.name, workItems = null;
+    if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") bytes = new Uint8Array(await file.arrayBuffer());
+    else {   // 手書き風文字追加の作業ファイル：中のPDFと手書きの要素を取り出す
+      const w = await readWorkFile(file, "hand");
+      bytes = w.bytes; name = w.name;
+      workItems = Array.isArray(w.state.items) ? w.state.items.filter((it) => it && typeof it === "object") : [];
+      asWork.checked = true;   // 手書きのあるファイルは、既定で作業ファイルとして書き出す
+    }
     const doc = await pdfjsLib.getDocument({ data: bytes.slice(), isEvalSupported: false }).promise;   // pdf.jsはバッファをtransferし得るためコピーを渡す
     const sourceId = `s${++sourceSeq}`;
-    sources.set(sourceId, { name: file.name, bytes });
+    sources.set(sourceId, { name, bytes });
     for (let i = 1; i <= doc.numPages; i++) {
       const pageId = `p${++pageSeq}`;
       const jsPage = await doc.getPage(i);
-      const info = { sourceId, pageIndex: i - 1, rot: 0, jsPage };
+      const info = { sourceId, pageIndex: i - 1, rot: 0, jsPage, items: workItems ? workItems.filter((it) => it.page === i) : null };
       pagesById.set(pageId, info);
-      const card = buildCard(pageId, info, file.name, i, doc.numPages);
+      const card = buildCard(pageId, info, name, i, doc.numPages);
       info.card = card;
       pagesEl.appendChild(card);
       renderThumb(card.querySelector("canvas"), info);
@@ -107,6 +121,10 @@
     const num = document.createElement("span"); num.className = "page-num"; num.textContent = `${pageNum}/${pageCount}`;
     const nm = document.createElement("span"); nm.className = "page-source"; nm.textContent = fileName; nm.title = fileName;
     label.append(num, nm);
+    if (info.items && info.items.length) {
+      const hw = document.createElement("span"); hw.className = "page-source"; hw.textContent = `✎ 手書き${info.items.length}件`; hw.title = "このページには「手書き風文字追加」の手書きがあります（回転はできません）";
+      label.append(hw);
+    }
 
     const acts = document.createElement("div"); acts.className = "page-actions";
     acts.append(
@@ -129,6 +147,7 @@
   function rotate(pageId, delta) {
     const info = pagesById.get(pageId);
     if (!info) return;
+    if (info.items && info.items.length) { setStatus2("手書きのあるページは回転できません（手書きの位置がずれるため）。回転は手書きを入れる前に行ってください。", true); return; }
     info.rot = (((info.rot + delta) % 360) + 360) % 360;
     renderThumb(info.card.querySelector("canvas"), info);
   }
@@ -181,7 +200,36 @@
   };
 
   // pageIds の順に1つのPDFを組み立てる（回転は元ページの/Rotateに加算）
-  async function build(pageIds) {
+  async function build(pageIds) { return new Blob([await buildBytes(pageIds)], { type: "application/pdf" }); }
+
+  // 手書きの要素を、新しいページ番号に付け替えて集める（元のPDFには手書きは入らない）
+  function collectItems(pageIds) {
+    const out = [];
+    pageIds.forEach((id, k) => {
+      const info = pagesById.get(id);
+      if (info && info.items) for (const it of info.items) out.push({ ...it, page: k + 1 });
+    });
+    // 「全ページ同じ場所」のコメントは、複数の作業ファイルを結合して位置が食い違うなら通常の文字に戻す
+    const fx = out.filter((it) => it.fixed);
+    if (fx.some((it) => it.x !== fx[0].x || it.y !== fx[0].y)) for (const it of fx) it.fixed = false;
+    return out;
+  }
+
+  async function buildWorkBlob(pageIds, pdfName) {
+    return makeWorkBlob("hand", await buildBytes(pageIds), pdfName, { items: JSON.parse(JSON.stringify(collectItems(pageIds))) });
+  }
+
+  // 出力：作業ファイル（.json）か、PDFか。手書きがあるのにPDFで書き出すときは確かめる
+  const workName = (pdfName) => pdfName.replace(/\.pdf$/i, "") + "_hand.json";
+  async function saveOut(pageIds, pdfName, target) {
+    if (asWork.checked) { await saveBlob(await buildWorkBlob(pageIds, pdfName), workName(pdfName), target); return; }
+    await saveBlob(await build(pageIds), pdfName, target);
+  }
+  const pickOut = (pdfName) => pickSaveTarget(asWork.checked ? workName(pdfName) : pdfName, asWork.checked ? "json" : undefined);
+  const confirmPdf = (pageIds) => asWork.checked || !pageIds.some((id) => { const i = pagesById.get(id); return i && i.items && i.items.length; })
+    || confirm("手書きの文字・線は、このPDFには含まれません（元のPDFだけが保存されます）。\n手書きを編集できる形で残すには、キャンセルして「作業ファイル（.json）で保存」にチェックしてください。\nこのままPDFを保存しますか？");
+
+  async function buildBytes(pageIds) {
     const cache = new Map(), out = await PDFDocument.create();
     for (const id of pageIds) {
       const info = pagesById.get(id);
@@ -192,7 +240,7 @@
       if (info.rot) pg.setRotation(degrees((pg.getRotation().angle + info.rot) % 360));
       out.addPage(pg);
     }
-    return new Blob([await out.save()], { type: "application/pdf" });
+    return await out.save();
   }
 
   const errText = (e) => /password|encrypt/i.test(String(e && e.message || e)) ? "パスワード保護されたPDFが含まれています。" : String(e && e.message || e);
@@ -201,11 +249,12 @@
   mergeBtn.onclick = async () => {
     const ids = cards().map((c) => c.dataset.pageId);
     if (!ids.length) return;
-    const fname = normName($("pg-name").value, "merged.pdf"), target = await pickSaveTarget(fname);
+    if (!confirmPdf(ids)) return;
+    const fname = normName($("pg-name").value, "merged.pdf"), target = await pickOut(fname);
     if (target === false) return;
     busy(true); setStatus2("結合中…");
     try {
-      await saveBlob(await build(ids), fname, target);
+      await saveOut(ids, fname, target);
       setStatus2(`結合しました（${ids.length}ページ${target ? "" : "、ダウンロードを開始しました"}）`);
     } catch (e) { setStatus2("結合に失敗しました: " + errText(e), true); }
     finally { busy(false); }
@@ -214,11 +263,12 @@
   extractBtn.onclick = async () => {
     const ids = selectedCards().map((c) => c.dataset.pageId);
     if (!ids.length) return;
-    const fname = normName($("pg-name").value.replace(/\.pdf$/i, "") + "_extract", "extract.pdf"), target = await pickSaveTarget(fname);
+    if (!confirmPdf(ids)) return;
+    const fname = normName($("pg-name").value.replace(/\.pdf$/i, "") + "_extract", "extract.pdf"), target = await pickOut(fname);
     if (target === false) return;
     busy(true); setStatus2("抽出中…");
     try {
-      await saveBlob(await build(ids), fname, target);
+      await saveOut(ids, fname, target);
       setStatus2(`選択した${ids.length}ページを保存しました`);
     } catch (e) { setStatus2("抽出に失敗しました: " + errText(e), true); }
     finally { busy(false); }
@@ -231,13 +281,14 @@
     const base = normName($("pg-name").value, "split.pdf").replace(/\.pdf$/i, "");
     const parts = [];
     for (let i = 0; i < ids.length; i += n) parts.push(ids.slice(i, i + n));
+    if (!confirmPdf(ids)) return;
     const dir = await pickSaveFolder();   // 保存先フォルダを1回だけ選ぶ（未対応ならnull＝通常のダウンロード）
     if (dir === false) return;
     busy(true);
     try {
       for (let i = 0; i < parts.length; i++) {
         setStatus2(`分割して保存中…（${i + 1}/${parts.length}）`);
-        await saveBlob(await build(parts[i]), `${base}_${String(i + 1).padStart(String(parts.length).length, "0")}.pdf`, dir);
+        await saveOut(parts[i], `${base}_${String(i + 1).padStart(String(parts.length).length, "0")}.pdf`, dir);
         if (!dir) await new Promise((r) => setTimeout(r, 350));   // 連続ダウンロードがブロックされにくいよう間隔を空ける
       }
       setStatus2(`${ids.length}ページを${n}ページごとに${parts.length}ファイルへ分割して保存しました`);

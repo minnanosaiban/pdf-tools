@@ -18,7 +18,7 @@
   let pdfBytes = null, baseName = "pdf", pageCount = 1, pageW = 595, pageH = 842, pos = POS[5];
 
   const el = {};
-  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "angle", "jitterNote", "margin", "from", "first", "mode", "chapters", "firstLabel", "chaptersBox", "markPos", "prev", "next", "pageInfo", "docName", "filled", "pageText", "pageCanvas", "open", "saveWork", "pos", "save", "saveStatus"]) el[k] = $("pn-" + k);
+  for (const k of ["file", "filename", "status", "area", "format", "font", "size", "color", "jitter", "angle", "jitterNote", "margin", "from", "first", "mode", "chapters", "firstLabel", "chaptersBox", "markPos", "reset", "prev", "next", "pageInfo", "docName", "filled", "pageText", "pageCanvas", "open", "saveWork", "pos", "save", "saveStatus"]) el[k] = $("pn-" + k);
   const setStatus = (m, err) => { el.status.textContent = m || ""; el.status.classList.toggle("is-error", !!err); };
   const setSaveStatus = (m, err) => { el.saveStatus.textContent = m || ""; el.saveStatus.classList.toggle("is-error-text", !!err); };
   const num = (e, lo, hi, def) => Math.min(hi, Math.max(lo, Math.round(+e.value) || def));
@@ -171,6 +171,14 @@
     angle: +el.angle.value, margin: +el.margin.value, from: +el.from.value, first: +el.first.value, mode: el.mode.value,
     chapters: el.chapters.value, pos: POS.indexOf(pos), texts: pageTexts, markPos: el.markPos.value });
 
+  el.reset.addEventListener("click", () => {
+    if (pageTexts.some((t) => t && t.trim()) && !confirm("入力した目印は破棄されます。PDFを閉じてクリアしますか？（残したいときは先に「ファイルを保存」してください）")) return;
+    pdfBytes = null; pageTexts = []; baseCanvas = null; cur = 1; pagerGen++;
+    if (pnPdf) { const old = pnPdf; pnPdf = null; Promise.resolve(old.destroy()).catch(() => {}); }
+    el.area.hidden = true; el.filename.hidden = true; el.reset.hidden = true; el.save.disabled = el.saveWork.disabled = true;
+    setSaveStatus(""); setStatus("PDFを選ぶと、設定とイメージが表示されます。");
+  });
+
   // restore があれば、それ（作業ファイルの中のPDFと設定）から読み込む
   async function loadFile(file, restore) {
     setSaveStatus(""); el.area.hidden = true; setStatus("読み込み中…");
@@ -187,7 +195,7 @@
       pageTexts = []; baseCanvas = null;
       if (restore) applyState(restore.state);
       el.filename.hidden = false; el.filename.textContent = `${fileName}（${pageCount}ページ）`;
-      el.area.hidden = false; syncMode(); showPage(1);
+      el.area.hidden = false; el.reset.hidden = false; syncMode(); showPage(1);
       el.save.disabled = el.saveWork.disabled = false;
       setStatus(restore ? `作業ファイルから「${fileName}」を開きました。続きから編集できます。${restore.state.format === "custom" ? "（旧版の「手入力」の文字は引き継げません。「手書き風文字追加」の「全ページ同じ場所にコメント」をお使いください）" : ""}` : "書式・位置などを選んで「PDFを保存」を押してください。");
     } catch (e) {

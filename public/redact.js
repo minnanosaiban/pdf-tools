@@ -48,6 +48,16 @@
   $("rd-file").onchange = (e) => { if (e.target.files[0]) loadFile(e.target.files[0]); e.target.value = ""; };
   wireDrop($("rd-drop"), (fs) => loadFile(fs[0]));
 
+  $("rd-reset").onclick = () => {
+    if (totalBoxes() && !confirm("今の墨消し枠は破棄されます。PDFを閉じてクリアしますか？")) return;
+    outputBlob = null; dlBtn.disabled = true; setApplyStatus(""); editVersion++;
+    for (const k of Object.keys(rectsByPage)) delete rectsByPage[k];
+    history.length = 0; updateCount();
+    pdf = null; numPages = 0; searchable = false; viewer.reset();
+    setSearchUI(false, "—"); qInput.value = "";
+    $("rd-reset").hidden = true;
+    setStatus("PDFを読み込むと、全ページがここに縦に並びます。");
+  };
   $("rd-undo").onclick = () => {
     const p = history.pop();
     if (p == null) return;
@@ -72,7 +82,7 @@
     try {
       const buf = await file.arrayBuffer();
       const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
-      pdf = doc; numPages = doc.numPages;
+      pdf = doc; numPages = doc.numPages; $("rd-reset").hidden = false;
       await viewer.load(doc);
       if (pdf !== doc) return;   // 読み込み中に別のファイルが選ばれた
       searchable = await detectSearchable();
@@ -82,7 +92,7 @@
         : "スキャンPDF（文字なし）です。文字検索は使えません。各ページをドラッグで墨消ししてください。";
       setStatus(`${file.name}（${numPages}ページ）を読み込みました。${mode} 枠はクリックで削除。`);
     } catch (e) {
-      pdf = null; viewer.reset();   // 古いページ表示を残さない
+      pdf = null; viewer.reset(); $("rd-reset").hidden = true;   // 古いページ表示を残さない
       setSearchUI(false, "—");
       setStatus(/password|encrypt/i.test(String(e && e.message || e)) ? "パスワード保護されたPDFには対応していません。" : "PDFを読み込めませんでした。");
     }

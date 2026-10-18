@@ -139,6 +139,7 @@
         PDFを選ぶ
         <input id="rd-file" type="file" accept="application/pdf">
       </label>
+      <button id="rd-reset" type="button" class="btn-outline" hidden title="読み込んだPDFを閉じて、最初の状態に戻します">ファイルをクリア</button>
       <span id="rd-ptype" class="badge">—</span>
       <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。</p>
     </div>
@@ -194,6 +195,7 @@
         ファイルを開く
         <input id="hw-open" type="file" accept=".json,application/json,.pdf,application/pdf">
       </label>
+      <button id="hw-reset" type="button" class="btn-outline" hidden title="読み込んだPDFを閉じて、最初の状態に戻します">ファイルをクリア</button>
       <button id="hw-saveWork" type="button" class="btn-primary" disabled title="今の作業を.jsonファイルとして保存します（元のPDFも入ります）。あとで「ファイルを開く」から続きを編集できます">ファイルを保存</button>
       <button id="hw-save" type="button" class="btn-primary" disabled title="編集結果を反映したPDFを保存します">PDFを保存</button>
       <p class="status" id="hw-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
@@ -268,9 +270,9 @@
       <label class="btn-outline filebtn" id="pg-drop" style="cursor:pointer">
         <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
         PDFを選ぶ
-        <input id="pg-file" type="file" accept="application/pdf" multiple>
+        <input id="pg-file" type="file" accept="application/pdf,.json,application/json" multiple>
       </label>
-      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。複数のPDFを同時に追加でき、あとから追加もできます。</p>
+      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。複数のPDFを同時に追加でき、あとから追加もできます。「手書き風文字追加」の作業ファイル（.json）も追加でき、手書きを残したまま結合・分割・並べ替え・削除ができます（手書きのあるページは回転できません）。</p>
     </div>
 
 
@@ -298,6 +300,8 @@
       </div>
       <button id="pg-split" type="button" class="btn-outline">分割して保存</button>
       <p class="cap" style="flex-basis:100%">※分割は現在の並び順で先頭から指定ページごとに区切り、複数ファイルを続けてダウンロードします（ブラウザが複数ダウンロードの許可を求めることがあります）。</p>
+      <label class="menu-pin-toggle" style="flex-basis:100%"><input type="checkbox" id="pg-asWork"> 作業ファイル（.json）で保存（「手書き風文字追加」で続きを編集できる形。手書きを使うときはこちら）</label>
+      <p class="cap" id="pg-workNote" style="flex-basis:100%"></p>
       <p class="status" id="pg-status2" style="flex-basis:100%" aria-live="polite"></p>
     </div>
 
@@ -321,6 +325,7 @@
         フォルダを選んで一覧表示
       </button>
       <input type="file" id="md-folderInput" webkitdirectory multiple hidden>
+      <button id="md-reset" type="button" class="btn-outline" hidden title="読み込んだPDFを閉じて、最初の状態に戻します">ファイルをクリア</button>
       <span class="badge" id="md-filename" hidden></span>
       <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。フォルダ選択では直下のPDFのタイトル・作成者をExcelのように一覧編集できます（サブフォルダは対象外。サブジェクト・キーワード等は1件ずつ編集してください）。ブラウザの確認ダイアログ（「アップロードしますか？」等）は読み取り許可の確認で、外部への送信はありません。</p>
     </div>
@@ -398,6 +403,7 @@
         PDFを選ぶ
         <input id="sh-file" type="file" accept="application/pdf">
       </label>
+      <button id="sh-reset" type="button" class="btn-outline" hidden title="読み込んだPDFを閉じて、最初の状態に戻します">ファイルをクリア</button>
       <span class="badge" id="sh-filename" hidden></span>
       <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。</p>
     </div>
@@ -448,6 +454,7 @@
       <button id="pn-saveWork" type="button" class="btn-primary" disabled title="今の作業を.jsonファイルとして保存します（元のPDFも入ります）。あとで「ファイルを開く」から続きを編集できます">ファイルを保存</button>
       <button id="pn-save" type="button" class="btn-primary" disabled title="編集結果を反映したPDFを保存します">PDFを保存</button>
       <p class="status" id="pn-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
+      <button id="pn-reset" type="button" class="btn-outline" hidden title="読み込んだPDFを閉じて、最初の状態に戻します">ファイルをクリア</button>
       <span class="badge" id="pn-filename" hidden></span>
       <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。途中で保存したいときは「ファイルを保存」（.json）を使い、あとで「ファイルを開く」から続きを編集できます。</p>
     </div>
@@ -562,12 +569,12 @@
 </button>
 
 <script src="common.js?v=4"></script>
-<script src="redact.js?v=4"></script>
-<script src="hand.js?v=11"></script>
-<script src="pages.js?v=4"></script>
-<script src="meta.js?v=3"></script>
-<script src="shrink.js?v=4"></script>
-<script src="pageno.js?v=8"></script>
+<script src="redact.js?v=5"></script>
+<script src="hand.js?v=13"></script>
+<script src="pages.js?v=5"></script>
+<script src="meta.js?v=4"></script>
+<script src="shrink.js?v=5"></script>
+<script src="pageno.js?v=10"></script>
 <script src="app.js?v=4"></script>
 </body>
 </html>

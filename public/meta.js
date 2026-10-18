@@ -14,7 +14,12 @@
 
   let pdfDoc = null, baseName = "pdf", folderRows = [], orig = {};   // orig: 読み込み時のサブジェクト・キーワード（変更時のみ書き戻す）
 
-  function setMode(mode) { editArea.hidden = mode !== "single"; folderArea.hidden = mode !== "folder"; }
+  function setMode(mode) { editArea.hidden = mode !== "single"; folderArea.hidden = mode !== "folder"; $("md-reset").hidden = mode === "empty"; }
+  $("md-reset").addEventListener("click", () => {
+    pdfDoc = null; folderRows = []; folderBody.innerHTML = ""; orig = {};
+    filenameEl.hidden = true; setSaveStatus(""); folderSaveAllStatus.textContent = "";
+    setMode("empty"); setStatus("「PDFを選ぶ」で1件、または「フォルダを選んで一覧表示」で複数まとめて編集できます。");
+  });
   function setStatus(t, err) { statusEl.textContent = t || ""; statusEl.classList.toggle("is-error", !!err); }
   function setSaveStatus(t, err) { saveStatus.textContent = t || ""; saveStatus.classList.toggle("is-error-text", !!err); }
   function formatDate(d) { try { return d ? d.toLocaleString("ja-JP") : "—"; } catch { return "—"; } }
@@ -78,6 +83,7 @@
     renderTable(files); setMode("folder"); folderSaveAllStatus.textContent = "";
     setStatus(`${files.length}件のPDFが見つかりました。読み込み中…`);
     for (let i = 0; i < files.length; i++) {
+      if (!folderRows.length) break;   // 途中で「ファイルをクリア」された
       await loadRow(files[i], i);
       setStatus(i + 1 < files.length
         ? `${files.length}件のPDFが見つかりました。読み込み中…（${i + 1}/${files.length}）`
@@ -111,6 +117,7 @@
   }
   async function loadRow(file, i) {
     const row = folderRows[i];
+    if (!row) return;
     try {
       const doc = await PDFDocument.load(new Uint8Array(await file.arrayBuffer()), { updateMetadata: false });
       row.doc = doc;

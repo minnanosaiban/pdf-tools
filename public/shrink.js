@@ -40,6 +40,11 @@
   el.num.addEventListener("input", () => { el.range.value = getScale(); drawPreview(); });
   el.num.addEventListener("change", () => { el.num.value = getScale(); el.range.value = el.num.value; drawPreview(); });
 
+  $("sh-reset").addEventListener("click", () => {
+    pdfBytes = null; el.area.hidden = true; el.name.hidden = true; $("sh-reset").hidden = true;
+    setSaveStatus(""); setStatus("PDFを選ぶと、設定と配置のイメージが表示されます。");
+  });
+
   async function loadFile(file) {
     setSaveStatus(""); el.area.hidden = true; setStatus("読み込み中…");
     try {
@@ -49,7 +54,7 @@
       aspect = (R % 180 ? cb.height / cb.width : cb.width / cb.height) || 1;
       pdfBytes = buf; baseName = file.name.replace(/\.pdf$/i, "") || "pdf";
       el.name.hidden = false; el.name.textContent = `${file.name}（${doc.getPageCount()}ページ）`;
-      el.area.hidden = false; drawPreview();
+      el.area.hidden = false; $("sh-reset").hidden = false; drawPreview();
       setStatus("倍率と位置を選んで「縮小して保存」を押してください。全ページに同じ設定が適用されます。");
     } catch (e) {
       pdfBytes = null;
