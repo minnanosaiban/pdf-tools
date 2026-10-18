@@ -63,6 +63,7 @@
           <button type="button" class="theme-swatch" role="tab" data-tool="meta">メタデータ編集削除</button>
           <button type="button" class="theme-swatch" role="tab" data-tool="shrink">縮小・配置</button>
           <button type="button" class="theme-swatch" role="tab" data-tool="pageno">ページ番号</button>
+          <button type="button" class="theme-swatch" role="tab" data-tool="gray">白黒化</button>
         </div>
       </div>
     </div>
@@ -112,6 +113,13 @@
                 <div class="mock-thumb-page"><span class="mock-line"></span><span class="mock-line"></span><span class="mock-line" style="width:60%"></span></div>
                 <span class="mock-plus">→</span>
                 <div class="mock-thumb-page" style="position:relative"><div style="position:absolute;left:4px;top:4px;width:85%;height:85%;border:1px dashed #9aa0a6;border-radius:3px;background:#f6f7f8"></div></div>
+              </div>
+            </div>
+            <div class="mock-doc" data-mock="gray" hidden>
+              <div class="mock-thumbs" style="padding-top:20px">
+                <div class="mock-thumb-page"><span class="mock-line" style="background:#f4a3a3"></span><span class="mock-line" style="background:#a3c2f4"></span><span class="mock-line" style="width:60%;background:#a3d9a8"></span></div>
+                <span class="mock-plus">→</span>
+                <div class="mock-thumb-page"><span class="mock-line" style="background:#c4c4c4"></span><span class="mock-line" style="background:#b0b0b0"></span><span class="mock-line" style="width:60%;background:#bcbcbc"></span></div>
               </div>
             </div>
             <div class="mock-doc" data-mock="pageno" hidden>
@@ -544,6 +552,33 @@
       </div>
     </div>
   </section>
+
+  <!-- ============ 白黒化 ============ -->
+  <section class="tool-panel" id="panel-gray" data-panel="gray" hidden>
+    <h2 class="panel-title">白黒化</h2>
+    <p class="panel-lead">PDFを白黒（グレースケール）にして保存します。ページを画像にしないので、文字は選択・検索できるまま（テキストレイヤが残ります）、ファイルもほとんど大きくなりません。「Microsoft Print to PDF」で白黒にすると文字データが失われるときの代わりに使えます。</p>
+
+    <div class="card toolbar">
+      <label class="btn-outline filebtn" id="gr-drop" style="cursor:pointer">
+        <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+        PDFを選ぶ
+        <input id="gr-file" type="file" accept="application/pdf">
+      </label>
+      <button id="gr-reset" type="button" class="btn-outline" hidden title="読み込んだPDFを閉じて、最初の状態に戻します">ファイルをクリア</button>
+      <button id="gr-save" type="button" class="btn-primary" disabled title="白黒にしたPDFを保存します">白黒にして保存</button>
+      <p class="status" id="gr-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
+      <span class="badge" id="gr-filename" hidden></span>
+      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。</p>
+    </div>
+
+    <p class="status" id="gr-status">PDFを選ぶと、白黒にしたイメージが表示されます。</p>
+
+    <div class="card" id="gr-area" hidden>
+      <p class="cap" id="gr-info"></p>
+      <canvas id="gr-preview" style="border:1px solid var(--tx-border);box-shadow:var(--tx-shadow-sm);background:#fff;max-width:100%" aria-label="白黒にしたページのイメージ"></canvas>
+      <p class="cap">※各ページの上に、色の濃さ（彩度）だけを消す透明な重ねを足す方式です。見た目は白黒ですが、元の色の指定はPDFの中に残ります。対応していない古いビューアでは、色が付いたまま表示されることがあります。</p>
+    </div>
+  </section>
 </main>
 
 <footer class="site-info" id="disclaimer">
@@ -575,6 +610,7 @@
 <script src="meta.js?v=4"></script>
 <script src="shrink.js?v=5"></script>
 <script src="pageno.js?v=10"></script>
-<script src="app.js?v=4"></script>
+<script src="gray.js?v=2"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
