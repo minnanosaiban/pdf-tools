@@ -233,7 +233,7 @@
     const s = W / (d.ptW || (W / viewer.scale));   // 画面のpx/pt（=表示倍率）
     ctx.clearRect(0, 0, W, H);
     for (const it of items) {
-      if (it.page !== p) continue;
+      if (it.page !== p || it.id === editingId) continue;   // 編集中の文字は、入力欄が代わりに表示される
       const m = drawItem(ctx, it, W, H, s);
       if (it.id === selectedId) {
         ctx.save();
@@ -263,6 +263,49 @@
     }
   }
   const redrawAll = () => { for (const k of Object.keys(viewer.dom)) redraw(+k); };
+
+  // ---- ページ上での直接入力（文字をダブルクリック／クリックして、その場で打つ） ----
+  let editingId = null, editor = null;
+  function closeEditor() {
+    if (!editor) return;
+    const ta = editor; editor = null; editingId = null;
+    ta.remove();
+    redrawAll();
+  }
+  function openEditor(it) {
+    const d = viewer.dom[it.page];
+    if (!d || !d.rendered || isShape(it)) return;
+    closeEditor();
+    const o = d.overlay, k = o.getBoundingClientRect().width / o.width;   // canvas px → 画面px
+    const s = o.width / (d.ptW || (o.width / viewer.scale));
+    const ta = document.createElement("textarea");
+    ta.className = "hw-inline"; ta.value = it.text; ta.rows = 1; ta.spellcheck = false;
+    ta.setAttribute("aria-label", "ページ上の文字を直接入力");
+    Object.assign(ta.style, {
+      position: "absolute", left: it.x * o.width * k + "px", top: it.y * o.height * k + "px", margin: "0", padding: "0",
+      border: "0", outline: "1.5px dashed rgba(30,33,38,.75)", outlineOffset: "4px", background: "rgba(255,255,255,.6)",
+      resize: "none", overflow: "hidden", whiteSpace: "pre", minWidth: "4em", fieldSizing: "content",
+      font: `${it.size * s * k}px/1.35 "${it.font}", "Yomogi", "Klee One", cursive`, color: it.color,
+      transform: `rotate(${it.angle}deg)`, transformOrigin: "0 0", zIndex: 5,
+    });
+    const fit = () => { ta.rows = Math.max(1, ta.value.split("\n").length); ta.style.width = ""; if (!("fieldSizing" in ta.style)) ta.style.width = Math.max(64, ta.scrollWidth + 8) + "px"; };
+    ta.addEventListener("input", () => {
+      it.text = ta.value; fit();
+      if (it.fixed) el.fxText.value = it.text; else el.text.value = it.text;
+      ensureFont(it); updateChrome();
+    });
+    ta.addEventListener("keydown", (e) => {
+      if (e.isComposing) return;
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeEditor(); }
+      else if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && it.fixed) { e.preventDefault(); closeEditor(); goFixed(fcur + 1); }
+    });
+    ta.addEventListener("blur", () => { if (editor === ta) closeEditor(); });
+    ta.addEventListener("pointerdown", (e) => e.stopPropagation());
+    d.stage.appendChild(ta);
+    editor = ta; editingId = it.id; fit();
+    redrawAll();
+    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  }
 
   function ensureFont(it) {
     if (!document.fonts || !document.fonts.load) return;
@@ -468,6 +511,10 @@
         eraseAt(q, drag); d.eraserPos = q; redraw(p);
         return;
       }
+      if (editor) {   // 入力中にほかの場所をクリックしたときは、確定するだけで新しい文字は置かない
+        closeEditor();
+        if (!hit(q) && !hitHandle(q)) { select(null); setStatus("入力を確定しました。"); return; }
+      }
       const hp = hitHandle(q);
       if (hp) {   // 選択中の要素のつまみ：大きさを変える
         o.setPointerCapture(e.pointerId);
@@ -486,7 +533,14 @@
         const size = clampPt(el.size.value, 24);
         select(null);
         fcur = p; moveFixed(clamp01(q.x), clamp01(q.y - (size * 0.6) / (o.height / viewer.scale))); syncFixedUI();
-        setStatus(`全ページ共通の位置を決めました（p.${p} を入力中）。上の欄にこのページのコメントを入力し、「次」で次のページへ進めます。`);
+        let f = fixedAt(p);
+        if (!f) {   // このページ用の空のコメントを作り、その場で入力できるようにする
+          f = { id: ++seq, page: p, type: "text", fixed: true, x: fixedPos.x, y: fixedPos.y, text: "", font: el.font.value, color: el.color.value,
+            size, jitter: +el.jitter.value, angle: +el.angle.value, seed: (Math.random() * 1e9) | 0 };
+          items.push(f);
+        }
+        select(f.id); setTimeout(() => openEditor(f), 0);
+        setStatus(`全ページ共通の位置を決めました（p.${p} を入力中）。そのまま打ち込めます（Ctrl+Enterで次のページへ）。上の欄からも入力できます。`);
       } else if (el.kind.value !== "text") {
         // 四角・マル：ドラッグで大きさを決める
         o.setPointerCapture(e.pointerId);
@@ -502,10 +556,19 @@
           jitter: +el.jitter.value, angle: +el.angle.value, seed: (Math.random() * 1e9) | 0 };
         items.push(n); ensureFont(n); select(n.id);
         setStatus(`p.${p} に文字を追加しました。ドラッグで移動、Deleteで削除できます。`);
-      } else {
-        select(null);
-        setStatus("先に上の「追加する文字」を入力してから、ページをクリックしてください。");
+      } else {   // 上の欄が空なら、クリックした場所に直接入力する
+        const size = clampPt(el.size.value, 24);
+        const n = { id: ++seq, page: p, type: "text", x: clamp01(q.x), y: clamp01(q.y - (size * 0.6) / (o.height / viewer.scale)),
+          text: "", font: el.font.value, color: el.color.value, size,
+          jitter: +el.jitter.value, angle: +el.angle.value, seed: (Math.random() * 1e9) | 0 };
+        items.push(n); select(n.id); setTimeout(() => openEditor(n), 0);
+        setStatus(`p.${p} の、クリックした場所に直接入力できます。外をクリックすると確定します。`);
       }
+    });
+    o.addEventListener("dblclick", (e) => {   // 置いた文字をダブルクリックで、その場で書き換え
+      if (el.kind.value === "eraser") return;
+      const it = hit(norm(e));
+      if (it && !isShape(it)) { select(it.id); openEditor(it); }
     });
     o.addEventListener("pointermove", (e) => {
       const q = norm(e);

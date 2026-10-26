@@ -64,6 +64,7 @@
           <button type="button" class="theme-swatch" role="tab" data-tool="shrink">縮小・配置</button>
           <button type="button" class="theme-swatch" role="tab" data-tool="pageno">ページ番号</button>
           <button type="button" class="theme-swatch" role="tab" data-tool="gray">白黒化</button>
+          <button type="button" class="theme-swatch" role="tab" data-tool="img">画像に変換</button>
         </div>
       </div>
     </div>
@@ -120,6 +121,13 @@
                 <div class="mock-thumb-page"><span class="mock-line" style="background:#f4a3a3"></span><span class="mock-line" style="background:#a3c2f4"></span><span class="mock-line" style="width:60%;background:#a3d9a8"></span></div>
                 <span class="mock-plus">→</span>
                 <div class="mock-thumb-page"><span class="mock-line" style="background:#c4c4c4"></span><span class="mock-line" style="background:#b0b0b0"></span><span class="mock-line" style="width:60%;background:#bcbcbc"></span></div>
+              </div>
+            </div>
+            <div class="mock-doc" data-mock="img" hidden>
+              <div class="mock-thumbs" style="padding-top:20px">
+                <div class="mock-thumb-page"><span class="mock-line"></span><span class="mock-line"></span><span class="mock-line" style="width:60%"></span></div>
+                <span class="mock-plus">→</span>
+                <div class="mock-thumb-page" style="position:relative"><span class="mock-hand" style="position:absolute;left:6px;top:14px;font-size:13px;transform:none">JPG<br>PNG</span></div>
               </div>
             </div>
             <div class="mock-doc" data-mock="pageno" hidden>
@@ -588,12 +596,63 @@
       <p class="cap">※各ページの上に、色の濃さ（彩度）だけを消す透明な重ねを足す方式です。見た目は白黒ですが、元の色の指定はPDFの中に残ります。対応していない古いビューアでは、色が付いたまま表示されることがあります。</p>
     </div>
   </section>
+
+  <!-- ============ 画像に変換 ============ -->
+  <section class="tool-panel" id="panel-img" data-panel="img" hidden>
+    <h2 class="panel-title">画像に変換</h2>
+    <p class="panel-lead">PDFの各ページを、JPEGまたはPNGの画像にして保存します。1ページが1枚の画像になります。</p>
+
+    <div class="card toolbar">
+      <label class="btn-outline filebtn" id="im-drop" style="cursor:pointer">
+        <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+        PDFを選ぶ
+        <input id="im-file" type="file" accept="application/pdf">
+      </label>
+      <button id="im-reset" type="button" class="btn-outline" hidden title="読み込んだPDFを閉じて、最初の状態に戻します">ファイルをクリア</button>
+      <button id="im-save" type="button" class="btn-primary" disabled title="各ページを画像にして保存します">画像にして保存</button>
+      <p class="status" id="im-saveStatus" style="flex-basis:100%" aria-live="polite"></p>
+      <span class="badge" id="im-filename" hidden></span>
+      <p class="cap" style="flex-basis:100%">※クリックのほかドラッグ＆ドロップでも選べます。</p>
+    </div>
+
+    <p class="status" id="im-status">PDFを選ぶと、画像に変換できます。</p>
+
+    <div class="card" id="im-area" hidden>
+      <p class="cap" id="im-info"></p>
+      <div class="field-group">
+        <div class="field-label"><label for="im-format">形式</label></div>
+        <select id="im-format" class="text-input" style="width:auto">
+          <option value="jpeg">JPEG（ファイルが小さい。写真向き）</option>
+          <option value="png">PNG（文字や図がくっきり。ファイルは大きめ）</option>
+        </select>
+      </div>
+      <div class="field-group" id="im-qualityRow">
+        <div class="field-label"><label for="im-quality">JPEGの画質</label></div>
+        <select id="im-quality" class="text-input" style="width:auto">
+          <option value="95">高い</option>
+          <option value="90" selected>標準</option>
+          <option value="75">低い（小さくする）</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <div class="field-label"><label for="im-scale">解像度</label></div>
+        <select id="im-scale" class="text-input" style="width:auto">
+          <option value="1">標準（96dpi相当）</option>
+          <option value="1.5">やや高い（144dpi相当）</option>
+          <option value="2" selected>高い（192dpi相当）</option>
+          <option value="3">とても高い（288dpi相当）</option>
+        </select>
+        <p class="field-hint-plain">※高くするほど文字は鮮明になりますが、ファイルは大きく、変換にも時間がかかります。</p>
+      </div>
+      <p class="cap">※保存先フォルダを選べるブラウザ（Chrome・Edgeなど）では、選んだフォルダに「ファイル名_01.jpg」のように保存します。それ以外のブラウザでは、ページ数ぶんのダウンロードが続けて始まります。</p>
+    </div>
+  </section>
 </main>
 
 <footer class="site-info" id="disclaimer">
   <div class="card">
     <div class="shead">■ このツールについて</div>
-    <p class="cap">※PDFの墨消し・検索、手書き風文字追加、結合・分割・回転、メタデータ編集削除、縮小・配置、ページ番号をまとめたツールです。</p>
+    <p class="cap">※PDFの墨消し・検索、手書き風文字追加、結合・分割・回転、メタデータ編集削除、縮小・配置、ページ番号、白黒化、画像への変換をまとめたツールです。</p>
     <p class="cap">※ご意見・ご要望は作成者までご連絡ください。</p>
     <a class="link" href="https://x.com/minnanosaiban" target="_blank" rel="noopener">@minnanosaiban</a>
   </div>
@@ -614,12 +673,13 @@
 
 <script src="common.js?v=4"></script>
 <script src="redact.js?v=5"></script>
-<script src="hand.js?v=13"></script>
+<script src="hand.js?v=14"></script>
 <script src="pages.js?v=5"></script>
 <script src="meta.js?v=4"></script>
 <script src="shrink.js?v=5"></script>
 <script src="pageno.js?v=10"></script>
 <script src="gray.js?v=3"></script>
-<script src="app.js?v=5"></script>
+<script src="img.js?v=1"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
